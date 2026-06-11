@@ -1,0 +1,9 @@
+{
+  "stage": "build-silver",
+  "created_at": "2026-06-08T22:26:08.283204+00:00",
+  "input_rows": 3,
+  "output_rows": 3,
+  "input_path": "tests\\fixtures\\raw",
+  "output_path": "tests\\fixtures\\silver\\jobs.parquet",
+  "config": {}
+}

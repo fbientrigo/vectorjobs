@@ -1,0 +1,22 @@
+skill_abr,skill_name
+PY,Python
+SQL,SQL
+SPARK,Apache Spark
+GO,Go
+GRPC,gRPC
+DOCKER,Docker
+JIRA,Jira
+AGILE,Agile
+R,R
+ML,Machine Learning
+TORCH,PyTorch
+K8S,Kubernetes
+TERRAFORM,Terraform
+REACT,React
+TS,TypeScript
+JAVA,Java
+SPRING,Spring Boot
+SEC,Security Engineering
+AWS,Amazon Web Services
+GCP,Google Cloud Platform
+AZURE,Microsoft Azure

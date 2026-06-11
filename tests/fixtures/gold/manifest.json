@@ -1,0 +1,9 @@
+{
+  "stage": "build-tfidf",
+  "created_at": "2026-06-08T22:26:13.031845+00:00",
+  "n_docs": 3,
+  "vocab_size": 21,
+  "input_path": "tests\\fixtures\\silver\\jobs.parquet",
+  "output_dir": "tests\\fixtures\\gold",
+  "config": {}
+}

@@ -1,0 +1,4 @@
+job_id,title,description,formatted_experience_level,formatted_work_type,location,listed_time,expiry,remote_allowed,work_type
+1,Data Engineer,Build pipelines.,Mid-Senior level,Full-time,San Francisco,1700000000000,1702592000000,0,FULL_TIME
+2,Software Engineer,Write code.,Entry level,Full-time,Remote,1700000001000,1702592001000,1,FULL_TIME
+3,Product Manager,Write specs.,,Contract,New York,1700000002000,,0,CONTRACT

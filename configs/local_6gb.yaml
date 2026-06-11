@@ -1,0 +1,21 @@
+# Local 6 GB CPU configuration
+# Use this profile when running on a laptop / desktop without a dedicated GPU.
+# Memory-conservative settings prevent OOM when processing the full Kaggle dataset.
+
+environment: local
+
+data:
+  chunksize: 50_000          # rows per CSV chunk (kept in memory at once)
+
+tfidf:
+  max_features: 30_000       # vocabulary cap  ← limits the sparse matrix width
+  ngram_range: [1, 2]        # unigrams + bigrams
+  sublinear_tf: true         # apply 1 + log(tf) dampening
+  min_df: 2                  # ignore terms appearing in only 1 document
+
+retrieval:
+  top_k_default: 10          # default number of recommendations returned
+  batch_size: 512            # query rows vectorised at once during retrieval
+
+logging:
+  level: INFO

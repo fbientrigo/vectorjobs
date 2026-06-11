@@ -1,0 +1,33 @@
+# Google Colab T4 configuration
+# The T4 has 15 GB GPU VRAM and ~12 GB RAM.
+# This profile relaxes memory caps and will enable GPU acceleration
+# in future milestones (Qwen3 embeddings, LLM inference).
+
+environment: colab
+
+data:
+  chunksize: 100_000         # larger chunks fit comfortably in Colab RAM
+
+tfidf:
+  max_features: 60_000       # wider vocabulary → better recall
+  ngram_range: [1, 2]
+  sublinear_tf: true
+  min_df: 2
+
+retrieval:
+  top_k_default: 10
+  batch_size: 1024           # GPU batch size (placeholder – GPU unused in M0)
+
+# Future milestones only – ignored in M0
+embeddings:
+  model_id: "Qwen/Qwen3-Embedding"
+  device: "cuda"
+  batch_size: 64
+
+llm:
+  model_id: "Qwen/Qwen3-8B"
+  device: "cuda"
+  max_new_tokens: 256
+
+logging:
+  level: INFO
