@@ -1,0 +1,97 @@
+{
+  "created_at": "2026-06-11T17:09:09.740323+00:00",
+  "input_path": "data\\silver\\jobs.parquet",
+  "input_row_count": 123849,
+  "selected_row_count": 10000,
+  "date_range": {
+    "min": "2024-04-05T19:34:32",
+    "max": "2024-04-20T00:26:56"
+  },
+  "bin_size": "D",
+  "k_requested": 12,
+  "k_effective": 12,
+  "embedding_method": "tfidf_svd",
+  "requested_embedding": "tfidf_svd",
+  "random_seed": 42,
+  "command_used": "jobsrec temporal-clusters --input data\\silver\\jobs.parquet --outdir reports\\temporal_clusters --bin D --k 12 --embedding tfidf_svd --embedding-model sentence-transformers/all-MiniLM-L6-v2 --embedding-batch-size 8 --max-rows 10000 --random-state 42",
+  "git_commit": "d84563369b1511fc52ff110f96e44df691d18acd",
+  "package_versions": {
+    "python": "3.11.9",
+    "platform": "Windows-10-10.0.26200-SP0",
+    "numpy": "1.26.4",
+    "pandas": "3.0.3",
+    "sklearn": "1.9.0",
+    "matplotlib": "3.7.5",
+    "pyarrow": "24.0.0"
+  },
+  "schema_mapping": {
+    "text_columns": [
+      "job_card_text",
+      "description",
+      "title"
+    ],
+    "time_column": "listed_time",
+    "skill_column": "skills_text",
+    "closure_column": "closed_time",
+    "last_seen_column": null,
+    "salary_columns": [
+      "normalized_salary",
+      "med_salary",
+      "min_salary",
+      "max_salary",
+      "currency",
+      "pay_period"
+    ],
+    "salary_available": true,
+    "decay_available": true
+  },
+  "limitations": [
+    "TF-IDF + SVD is a CPU-safe semantic baseline, not a deep language model.",
+    "Clusters are fixed for the selected corpus; changing max rows or random seed can change the fitted global clusters.",
+    "Salary metrics only use rows with usable annualized salary and USD/blank currency.",
+    "Temporal bins with few postings can make cluster shares and drift noisy."
+  ],
+  "salary_available": true,
+  "salary_summary": {
+    "n_with_salary": 2875,
+    "coverage": 0.2875
+  },
+  "decay_available": true,
+  "decay_summary": "Lifecycle duration data detected; exponential right-censored fit was attempted by cluster.",
+  "runtime_seconds": 56.27464340000006,
+  "embedding": {
+    "embedding_method": "tfidf_svd",
+    "tfidf_vocabulary_size": 20000,
+    "svd_components": 50,
+    "embedding_dim": 50,
+    "requested_embedding": "tfidf_svd",
+    "embedding_fallback_reason": null
+  },
+  "output_paths": {
+    "cluster_time_metrics": "reports\\temporal_clusters\\cluster_time_metrics.parquet",
+    "cluster_labels_csv": "reports\\temporal_clusters\\cluster_labels.csv",
+    "cluster_labels_json": "reports\\temporal_clusters\\cluster_labels.json",
+    "cluster_labels_parquet": "reports\\temporal_clusters\\cluster_labels.parquet",
+    "cluster_assignments": "reports\\temporal_clusters\\cluster_assignments.parquet",
+    "global_cluster_centroids": "reports\\temporal_clusters\\global_cluster_centroids.npy",
+    "report": "reports\\temporal_clusters\\report.md",
+    "manifest": "reports\\temporal_clusters\\manifest.json"
+  },
+  "generated_files": [
+    "reports\\temporal_clusters\\cluster_labels.csv",
+    "reports\\temporal_clusters\\cluster_labels.json",
+    "reports\\temporal_clusters\\cluster_labels.parquet",
+    "reports\\temporal_clusters\\cluster_assignments.parquet",
+    "reports\\temporal_clusters\\cluster_time_metrics.parquet",
+    "reports\\temporal_clusters\\cluster_growth.parquet",
+    "reports\\temporal_clusters\\global_cluster_centroids.npy",
+    "reports\\temporal_clusters\\cluster_bubble_timeline.png",
+    "reports\\temporal_clusters\\cluster_share_timeseries.png",
+    "reports\\temporal_clusters\\cluster_semantic_trajectory.png",
+    "reports\\temporal_clusters\\cluster_decay_summary.parquet",
+    "reports\\temporal_clusters\\cluster_survival_curves.png",
+    "reports\\temporal_clusters\\cluster_decay_exponential_fit.png",
+    "reports\\temporal_clusters\\report.md",
+    "reports\\temporal_clusters\\manifest.json"
+  ]
+}

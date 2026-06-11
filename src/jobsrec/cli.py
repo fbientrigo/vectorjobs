@@ -3,11 +3,13 @@ Click CLI entry-points for the jobsrec pipeline.
 
 Commands
 --------
-build-silver    Load raw CSVs → build silver Parquet.
-build-tfidf     Fit TF-IDF vectoriser on silver data → write gold artefacts.
-recommend       Load gold artefacts → return top-k JSON recommendations.
-profile-silver  Profile a silver Parquet and write a JSON data report.
-temporal-demo   Build a fast temporal trend demo report and plots.
+build-silver      Load raw CSVs → build silver Parquet.
+build-tfidf       Fit TF-IDF vectoriser on silver data → write gold artefacts.
+recommend         Load gold artefacts → return top-k JSON recommendations.
+profile-silver    Profile a silver Parquet and write a JSON data report.
+temporal-demo     Build a fast temporal trend demo report and plots.
+temporal-clusters Build fixed temporal cluster analytics report and plots.
+skill-evolution   Build offline skill-share evolution analytics report and plots.
 """
 
 from __future__ import annotations
@@ -512,6 +514,78 @@ def temporal_demo_cmd(
     )
 
 # ---------------------------------------------------------------------------
+# temporal-clusters
+# ---------------------------------------------------------------------------
+
+@main.command("temporal-clusters")
+@click.option("--input", "input_path", required=True, type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--outdir", required=True, type=click.Path(file_okay=False, path_type=Path))
+@click.option("--bin", "bin_size", default="D", show_default=True, type=click.Choice(["D", "W", "M"], case_sensitive=False))
+@click.option("--k", default=12, show_default=True, type=int)
+@click.option("--embedding", default="tfidf_svd", show_default=True, type=click.Choice(["tfidf_svd", "sentence_transformers"]))
+@click.option("--embedding-model", default="sentence-transformers/all-MiniLM-L6-v2", show_default=True, type=str)
+@click.option("--embedding-batch-size", default=8, show_default=True, type=int)
+@click.option("--max-rows", default=100000, show_default=True, type=int)
+@click.option("--random-state", default=42, show_default=True, type=int)
+@click.option("--log-level", default="INFO", show_default=True)
+def temporal_clusters_cmd(
+    input_path: Path,
+    outdir: Path,
+    bin_size: str,
+    k: int,
+    embedding: str,
+    embedding_model: str,
+    embedding_batch_size: int,
+    max_rows: int,
+    random_state: int,
+    log_level: str,
+) -> None:
+    """Build fixed temporal cluster analytics over silver job postings."""
+    _setup_logging(log_level)
+
+    from jobsrec.trends.temporal_clusters import run_temporal_clusters
+
+    command_used = (
+        "jobsrec temporal-clusters "
+        f"--input {input_path} "
+        f"--outdir {outdir} "
+        f"--bin {bin_size} "
+        f"--k {k} "
+        f"--embedding {embedding} "
+        f"--embedding-model {embedding_model} "
+        f"--embedding-batch-size {embedding_batch_size} "
+        f"--max-rows {max_rows} "
+        f"--random-state {random_state}"
+    )
+    result = run_temporal_clusters(
+        input_path=input_path,
+        outdir=outdir,
+        bin_size=bin_size.upper(),
+        k=k,
+        embedding=embedding,
+        max_rows=max_rows,
+        random_state=random_state,
+        command_used=command_used,
+        embedding_model=embedding_model,
+        embedding_batch_size=embedding_batch_size,
+    )
+    click.echo(
+        json.dumps(
+            {
+                "metrics_path": str(result.metrics_path),
+                "manifest_path": str(result.manifest_path),
+                "report_path": str(result.report_path),
+                "selected_row_count": result.manifest["selected_row_count"],
+                "k_effective": result.manifest["k_effective"],
+                "salary_available": result.manifest["salary_available"],
+                "decay_available": result.manifest["decay_available"],
+                "generated_files": result.generated_files,
+            },
+            indent=2,
+        )
+    )
+
+# ---------------------------------------------------------------------------
 # profile-silver
 # ---------------------------------------------------------------------------
 
@@ -561,6 +635,71 @@ def profile_silver_cmd(
     if profile.listed_time_parse_rate is not None:
         rate_pct = round(profile.listed_time_parse_rate * 100, 1)
         click.echo(f"  listed_time parse rate: {rate_pct}%")
+
+
+# ---------------------------------------------------------------------------
+# skill-evolution
+# ---------------------------------------------------------------------------
+
+@main.command("skill-evolution")
+@click.option("--input", "input_path", required=True, type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--outdir", required=True, type=click.Path(file_okay=False, path_type=Path))
+@click.option("--bin", "bin_size", default="W", show_default=True, type=click.Choice(["D", "W", "M"], case_sensitive=False))
+@click.option("--top-n", "top_n_skills", default=12, show_default=True, type=int)
+@click.option("--max-rows", default=100000, show_default=True, type=int)
+@click.option("--random-state", default=42, show_default=True, type=int)
+@click.option("--confidence-threshold", default=0.05, show_default=True, type=float)
+@click.option("--margin-threshold", default=0.01, show_default=True, type=float)
+@click.option("--log-level", default="INFO", show_default=True)
+def skill_evolution_cmd(
+    input_path: Path,
+    outdir: Path,
+    bin_size: str,
+    top_n_skills: int,
+    max_rows: int,
+    random_state: int,
+    confidence_threshold: float,
+    margin_threshold: float,
+    log_level: str,
+) -> None:
+    """Build offline skill-share evolution analytics report and plots."""
+    _setup_logging(log_level)
+
+    from jobsrec.trends.skill_evolution import run_skill_evolution
+
+    command_used = (
+        "jobsrec skill-evolution "
+        f"--input {input_path} "
+        f"--outdir {outdir} "
+        f"--bin {bin_size} "
+        f"--top-n {top_n_skills} "
+        f"--max-rows {max_rows} "
+        f"--random-state {random_state} "
+        f"--confidence-threshold {confidence_threshold} "
+        f"--margin-threshold {margin_threshold}"
+    )
+    result = run_skill_evolution(
+        input_path=input_path,
+        outdir=outdir,
+        bin_size=bin_size.upper(),
+        top_n_skills=top_n_skills,
+        max_rows=max_rows,
+        random_state=random_state,
+        confidence_threshold=confidence_threshold,
+        margin_threshold=margin_threshold,
+        command_used=command_used,
+    )
+    click.echo(
+        json.dumps(
+            {
+                "manifest_path": str(result.manifest_path),
+                "report_path": str(result.report_path),
+                "domain_skill_monthly_path": str(result.domain_skill_monthly_path),
+                "generated_files": result.generated_files,
+            },
+            indent=2,
+        )
+    )
 
 
 # ---------------------------------------------------------------------------

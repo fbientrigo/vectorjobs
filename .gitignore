@@ -61,3 +61,5 @@ scratch/
 # Jupyter – notebooks are scratch; not source of truth
 .ipynb_checkpoints/
 *.ipynb
+!notebooks/
+!notebooks/cluster_skill_timelines_colab.ipynb

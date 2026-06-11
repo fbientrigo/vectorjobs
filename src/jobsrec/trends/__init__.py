@@ -19,9 +19,20 @@ from jobsrec.trends.temporal import (
     run_temporal_demo,
     sample_jobs,
 )
+from jobsrec.trends.temporal_clusters import (
+    TemporalClusterResult,
+    build_cluster_labels,
+    compute_decay_inputs,
+    compute_temporal_cluster_metrics,
+    detect_temporal_cluster_schema,
+    fit_exponential_decay_by_cluster,
+    fit_fixed_clusters,
+    run_temporal_clusters,
+)
 
 __all__ = [
     "TemporalAuditResult",
+    "TemporalClusterResult",
     "TemporalDemoResult",
     "add_month_bucket",
     "build_reliability_assessment",
@@ -36,6 +47,13 @@ __all__ = [
     "parse_time_column",
     "prepare_salary_weights",
     "run_temporal_audit",
+    "run_temporal_clusters",
     "run_temporal_demo",
     "sample_jobs",
+    "build_cluster_labels",
+    "compute_decay_inputs",
+    "compute_temporal_cluster_metrics",
+    "detect_temporal_cluster_schema",
+    "fit_exponential_decay_by_cluster",
+    "fit_fixed_clusters",
 ]

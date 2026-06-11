@@ -1,0 +1,155 @@
+{
+  "created_at": "2026-06-11T21:48:51.108484+00:00",
+  "input_path": "data\\silver\\jobs.parquet",
+  "input_row_count": 123849,
+  "selected_row_count": 10000,
+  "date_range": {
+    "min": "2024-04-05T19:34:32",
+    "max": "2024-04-20T00:26:56"
+  },
+  "bin_size": "D",
+  "top_n_skills": 12,
+  "random_seed": 42,
+  "confidence_threshold": 0.05,
+  "margin_threshold": 0.01,
+  "command_used": "jobsrec skill-evolution --input data\\silver\\jobs.parquet --outdir reports\\skill_evolution --bin D --top-n 12 --max-rows 10000 --random-state 42 --confidence-threshold 0.05 --margin-threshold 0.01",
+  "git_commit": "d84563369b1511fc52ff110f96e44df691d18acd",
+  "package_versions": {
+    "python": "3.11.9",
+    "platform": "Windows-10-10.0.26200-SP0",
+    "numpy": "2.4.6",
+    "pandas": "3.0.3",
+    "sklearn": "1.9.0",
+    "matplotlib": "3.10.9",
+    "pyarrow": "24.0.0"
+  },
+  "schema_mapping": {
+    "text_columns": [
+      "job_card_text",
+      "description",
+      "title"
+    ],
+    "time_column": "listed_time",
+    "skill_column": "skills_text",
+    "closure_column": "closed_time",
+    "last_seen_column": null,
+    "salary_columns": [
+      "normalized_salary",
+      "med_salary",
+      "min_salary",
+      "max_salary",
+      "currency",
+      "pay_period"
+    ],
+    "salary_available": true,
+    "decay_available": true
+  },
+  "embedding": {
+    "embedding_method": "tfidf_svd",
+    "tfidf_vocabulary_size": 20000,
+    "svd_components": 50,
+    "embedding_dim": 50,
+    "requested_embedding": "tfidf_svd",
+    "embedding_fallback_reason": null
+  },
+  "domain_assignment": {
+    "method": "tfidf_svd_similarity_with_keyword_fallback",
+    "target_domains": [
+      "health",
+      "tech",
+      "construction_industry",
+      "education",
+      "sales"
+    ],
+    "domain_labels": {
+      "health": "Health",
+      "tech": "Tech",
+      "construction_industry": "Construction/Industry",
+      "education": "Education",
+      "sales": "Sales"
+    }
+  },
+  "domain_counts": [
+    {
+      "domain": "health",
+      "n_jobs": 2357,
+      "n_uncertain": 102,
+      "domain_label": "Health"
+    },
+    {
+      "domain": "tech",
+      "n_jobs": 2228,
+      "n_uncertain": 107,
+      "domain_label": "Tech"
+    },
+    {
+      "domain": "construction_industry",
+      "n_jobs": 1709,
+      "n_uncertain": 78,
+      "domain_label": "Construction/Industry"
+    },
+    {
+      "domain": "education",
+      "n_jobs": 781,
+      "n_uncertain": 52,
+      "domain_label": "Education"
+    },
+    {
+      "domain": "sales",
+      "n_jobs": 2925,
+      "n_uncertain": 177,
+      "domain_label": "Sales"
+    }
+  ],
+  "reliability": {
+    "label": "sufficient_temporal_coverage",
+    "n_months": 12,
+    "min_months_required": 6,
+    "min_rows_per_month": 1000,
+    "low_support_months": {
+      "2024-04-05": 382,
+      "2024-04-06": 667,
+      "2024-04-07": 32,
+      "2024-04-09": 805,
+      "2024-04-11": 544,
+      "2024-04-12": 609,
+      "2024-04-15": 615,
+      "2024-04-16": 367,
+      "2024-04-17": 824,
+      "2024-04-20": 27
+    },
+    "warnings": [
+      "Months below 1000 rows may make first/last or consecutive comparisons noisy: 2024-04-05=382, 2024-04-06=667, 2024-04-07=32, 2024-04-09=805, 2024-04-11=544, 2024-04-12=609, 2024-04-15=615, 2024-04-16=367, 2024-04-17=824, 2024-04-20=27",
+      "First/last comparison is likely noisy because an endpoint month has low support."
+    ],
+    "known_limitations": []
+  },
+  "limitations": [
+    "TF-IDF + SVD domain assignment is a CPU-safe baseline; it is less accurate than the Qwen-based assignment used in the Colab notebook.",
+    "Skills are deterministic, derived only from the skills column; no LLM enrichment is performed.",
+    "Domain confidence/margin thresholds were tuned for TF-IDF cosine similarities, which run lower than dense sentence-embedding similarities.",
+    "Time bins with few postings can make skill shares noisy."
+  ],
+  "runtime_seconds": 73.28796420000072,
+  "output_paths": {
+    "domain_assignments": "reports\\skill_evolution\\domain_assignments.parquet",
+    "skill_long": "reports\\skill_evolution\\skill_long.parquet",
+    "domain_skill_monthly": "reports\\skill_evolution\\domain_skill_monthly.parquet",
+    "domain_counts": "reports\\skill_evolution\\domain_counts.parquet",
+    "report": "reports\\skill_evolution\\report.md",
+    "manifest": "reports\\skill_evolution\\manifest.json"
+  },
+  "generated_files": [
+    "reports\\skill_evolution\\domain_assignments.parquet",
+    "reports\\skill_evolution\\skill_long.parquet",
+    "reports\\skill_evolution\\domain_skill_monthly.parquet",
+    "reports\\skill_evolution\\domain_counts.parquet",
+    "reports\\skill_evolution\\skill_evolution_health.png",
+    "reports\\skill_evolution\\skill_evolution_tech.png",
+    "reports\\skill_evolution\\skill_evolution_construction_industry.png",
+    "reports\\skill_evolution\\skill_evolution_education.png",
+    "reports\\skill_evolution\\skill_evolution_sales.png",
+    "reports\\skill_evolution\\report.md",
+    "reports\\skill_evolution\\manifest.json"
+  ]
+}
