@@ -1,0 +1,67 @@
+{
+  "created_at": "2026-06-11T10:57:37.795738+00:00",
+  "input_path": "data\\silver\\jobs.parquet",
+  "output_dir": "reports\\temporal_semantic_mock_1k",
+  "figures_dir": "reports\\temporal_semantic_mock_1k\\figures",
+  "report_path": "reports\\temporal_semantic_mock_1k\\report.md",
+  "n_rows_input": 123849,
+  "n_rows_valid_time": 123849,
+  "n_rows_selected": 1000,
+  "listed_time_parse_success_rate": 1.0,
+  "sample_size": 1000,
+  "sampling_mode": "temporal-stride",
+  "min_jobs_per_month": 1,
+  "first_month": "2024-03",
+  "last_month": "2024-04",
+  "n_months": 2,
+  "runtime_seconds": 21.886311399999613,
+  "text_column": "job_card_text",
+  "skill_column": "skills_text",
+  "representation": "semantic_embeddings",
+  "embedding_backend": "mock",
+  "embedding_model": "deterministic-mock",
+  "embedding_batch_size": 16,
+  "embedding_cache_dir": "data\\cache\\embeddings",
+  "embedding_cache_path": "data\\cache\\embeddings\\e84e4b3f509934b21b010b61.npy",
+  "embedding_cache_hit": true,
+  "device": "cpu",
+  "max_embedding_rows": 1000,
+  "semantic_limit_applied": false,
+  "monthly_row_counts": {
+    "2024-03": 1,
+    "2024-04": 999
+  },
+  "reliability_label": "limited_temporal_coverage",
+  "reliability_warnings": [
+    "Only 2 months are available; this is a temporal comparison, not a stable trend.",
+    "Only 2 months are available; this is a two-bucket comparison, not a trend.",
+    "Months below 1000 rows may make first/last or consecutive comparisons noisy: 2024-03=1, 2024-04=999",
+    "First/last comparison is likely noisy because an endpoint month has low support."
+  ],
+  "known_limitations": [
+    "Do not describe two-month output as market evolution."
+  ],
+  "deferred_tasks": [
+    "Bootstrap stability for drift and skill growth is deferred; add a small explicit seed list before using confidence intervals."
+  ],
+  "embedding_method": "semantic_embeddings",
+  "svd_enabled": false,
+  "generated_files": [
+    "reports\\temporal_semantic_mock_1k\\monthly_centroid_drift.parquet",
+    "reports\\temporal_semantic_mock_1k\\skill_growth.parquet",
+    "reports\\temporal_semantic_mock_1k\\temporal_manifest.json",
+    "reports\\temporal_semantic_mock_1k\\monthly_centroid_metadata.parquet",
+    "reports\\temporal_semantic_mock_1k\\monthly_centroids.npy",
+    "reports\\temporal_semantic_mock_1k\\figures\\job_volume_by_month.png",
+    "reports\\temporal_semantic_mock_1k\\figures\\centroid_drift_by_month.png",
+    "reports\\temporal_semantic_mock_1k\\figures\\top_rising_skills.png",
+    "reports\\temporal_semantic_mock_1k\\figures\\top_declining_skills.png",
+    "reports\\temporal_semantic_mock_1k\\job_clusters.parquet",
+    "reports\\temporal_semantic_mock_1k\\figures\\job_cluster_map_svd.png",
+    "reports\\temporal_semantic_mock_1k\\similarity_sample.parquet",
+    "reports\\temporal_semantic_mock_1k\\figures\\similarity_distribution.png",
+    "reports\\temporal_semantic_mock_1k\\report.md"
+  ],
+  "embedding_rows": 1000,
+  "embedding_dim": 16
+}

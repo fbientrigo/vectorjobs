@@ -1,0 +1,237 @@
+{
+  "n_postings": 5000,
+  "n_unique_job_ids": 5000,
+  "n_missing_titles": 0,
+  "n_missing_descriptions": 0,
+  "n_jobs_without_skills": 197,
+  "n_unique_skills": 35,
+  "top_20_skills": [
+    {
+      "skill": "Information Technology",
+      "count": 952
+    },
+    {
+      "skill": "Sales",
+      "count": 878
+    },
+    {
+      "skill": "Management",
+      "count": 807
+    },
+    {
+      "skill": "Manufacturing",
+      "count": 731
+    },
+    {
+      "skill": "Health Care Provider",
+      "count": 650
+    },
+    {
+      "skill": "Business Development",
+      "count": 604
+    },
+    {
+      "skill": "Engineering",
+      "count": 472
+    },
+    {
+      "skill": "Other",
+      "count": 417
+    },
+    {
+      "skill": "Finance",
+      "count": 330
+    },
+    {
+      "skill": "Accounting/Auditing",
+      "count": 219
+    },
+    {
+      "skill": "Marketing",
+      "count": 197
+    },
+    {
+      "skill": "Administrative",
+      "count": 183
+    },
+    {
+      "skill": "Project Management",
+      "count": 169
+    },
+    {
+      "skill": "Analyst",
+      "count": 151
+    },
+    {
+      "skill": "Human Resources",
+      "count": 129
+    },
+    {
+      "skill": "Legal",
+      "count": 114
+    },
+    {
+      "skill": "Research",
+      "count": 109
+    },
+    {
+      "skill": "Design",
+      "count": 107
+    },
+    {
+      "skill": "Education",
+      "count": 89
+    },
+    {
+      "skill": "Training",
+      "count": 88
+    }
+  ],
+  "datetime_columns_present": [
+    "listed_time",
+    "expiry",
+    "closed_time",
+    "original_listed_time"
+  ],
+  "listed_time_parse_rate": 1.0,
+  "listed_time_n_total": 5000,
+  "listed_time_n_parsed": 5000,
+  "expiry_parse_rate": 1.0,
+  "expiry_n_total": 5000,
+  "expiry_n_parsed": 5000,
+  "closed_time_parse_rate": 1.0,
+  "closed_time_n_total": 34,
+  "closed_time_n_parsed": 34,
+  "salary_columns_present": [
+    "min_salary",
+    "max_salary",
+    "med_salary",
+    "pay_period",
+    "compensation_type",
+    "currency",
+    "normalized_salary"
+  ],
+  "salary_non_null_counts": {
+    "min_salary": 1284,
+    "max_salary": 1284,
+    "med_salary": 288,
+    "pay_period": 1572,
+    "compensation_type": 1572,
+    "currency": 1572,
+    "normalized_salary": 5000
+  },
+  "location_columns_present": [
+    "location",
+    "zip_code",
+    "formatted_work_type",
+    "work_type",
+    "remote_allowed",
+    "formatted_experience_level"
+  ],
+  "work_type_distribution": {
+    "Full-time": 3940,
+    "Contract": 547,
+    "Part-time": 374,
+    "Internship": 64,
+    "Temporary": 41,
+    "Other": 22,
+    "Volunteer": 12
+  },
+  "experience_level_distribution": {
+    "Mid-Senior level": 1451,
+    "Entry level": 1246,
+    "Associate": 322,
+    "Director": 106,
+    "Internship": 61,
+    "Executive": 39
+  },
+  "location_top_20": [
+    {
+      "location": "United States",
+      "count": 333
+    },
+    {
+      "location": "New York, NY",
+      "count": 107
+    },
+    {
+      "location": "Houston, TX",
+      "count": 77
+    },
+    {
+      "location": "Chicago, IL",
+      "count": 64
+    },
+    {
+      "location": "Boston, MA",
+      "count": 59
+    },
+    {
+      "location": "Atlanta, GA",
+      "count": 51
+    },
+    {
+      "location": "Phoenix, AZ",
+      "count": 51
+    },
+    {
+      "location": "New York City Metropolitan Area",
+      "count": 48
+    },
+    {
+      "location": "Los Angeles, CA",
+      "count": 41
+    },
+    {
+      "location": "Dallas, TX",
+      "count": 41
+    },
+    {
+      "location": "Austin, TX",
+      "count": 38
+    },
+    {
+      "location": "Las Vegas, NV",
+      "count": 37
+    },
+    {
+      "location": "San Francisco, CA",
+      "count": 36
+    },
+    {
+      "location": "San Diego, CA",
+      "count": 31
+    },
+    {
+      "location": "Seattle, WA",
+      "count": 30
+    },
+    {
+      "location": "California, United States",
+      "count": 29
+    },
+    {
+      "location": "Denver, CO",
+      "count": 28
+    },
+    {
+      "location": "Philadelphia, PA",
+      "count": 28
+    },
+    {
+      "location": "Milwaukee, WI",
+      "count": 26
+    },
+    {
+      "location": "Acton, MA",
+      "count": 26
+    }
+  ],
+  "remote_allowed_distribution": {
+    "1.0": 701
+  },
+  "_meta": {
+    "silver_path": "scratch\\real_5k_silver\\jobs.parquet",
+    "profiled_at": "2026-06-08T23:07:31.989551+00:00"
+  }
+}
