@@ -1,0 +1,14 @@
+scratch/
+reports/
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.html
+*.pdf
+.venv/
+.pytest_cache/
+.claude/
+.code-review-graph/
+.git/

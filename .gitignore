@@ -63,3 +63,6 @@ scratch/
 *.ipynb
 !notebooks/
 !notebooks/cluster_skill_timelines_colab.ipynb
+
+# Graphify local configs
+graphify-out/.graphify_python
