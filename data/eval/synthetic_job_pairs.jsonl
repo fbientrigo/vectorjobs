@@ -1,0 +1,5 @@
+{"anchor":"Software engineer building REST APIs in Python for cloud services","candidate":"Backend developer creating Python API services for a cloud platform","label":1,"difficulty":"easy_positive"}
+{"anchor":"Machine learning engineer developing ranking models for recommendations","candidate":"Applied scientist improving recommender systems with model training pipelines","label":1,"difficulty":"hard_positive"}
+{"anchor":"Frontend developer building React interfaces for a student portal","candidate":"Payroll accountant preparing monthly financial reports and tax filings","label":0,"difficulty":"easy_negative"}
+{"anchor":"Data analyst building dashboards and SQL reports for admissions","candidate":"Backend data engineer maintaining ETL pipelines and warehouse tables","label":0,"difficulty":"hard_negative"}
+{"anchor":"Ingeniero de datos que construye pipelines ETL y modelos analiticos","candidate":"Data engineer building ETL workflows and analytics data models","label":1,"difficulty":"spanish_english_positive"}
