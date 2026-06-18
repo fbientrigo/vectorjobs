@@ -26,15 +26,18 @@ regenera llamando a los scripts.
 `arshkon/linkedin-job-postings` y construye un sample pequeño y consistente:
 
 ```bash
-# Descarga completa + sample de 100 filas (requiere credenciales Kaggle)
-python scripts/download_dataset.py --sample 100
+# PoC sin red ni credenciales (usa data/sample commiteado)
+python scripts/download_dataset.py --source-type sample --sample 100
 
-# Solo (re)construir el sample desde datos ya descargados (sin red)
-python scripts/download_dataset.py --skip-download --sample 100
+# Mirror en host permitido (GitHub Release / bucket propio)
+python scripts/download_dataset.py --source-type url --url <archivo.zip>
+
+# Kaggle oficial (requiere creds + kaggle.com en allowlist)
+python scripts/download_dataset.py --source-type kaggle --sample 100
 ```
 
-Credenciales en la nube: `KAGGLE_USERNAME` + `KAGGLE_KEY` (o `KAGGLE_API_TOKEN`,
-o `~/.kaggle/kaggle.json`).
+El entorno remoto tiene **allowlist de egress** (github sí, kaggle/HF no por
+defecto). Alternativas y configuración: ver `scripts/README_dataset.md`.
 
 ## Fuentes de precios AWS (jun-2026)
 
