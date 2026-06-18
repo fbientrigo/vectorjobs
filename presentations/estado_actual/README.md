@@ -4,14 +4,30 @@ Deck Beamer (español) sobre el estado del proyecto: centroides y su deriva
 temporal, "market cap" del mercado laboral (volumen × salario), uso de mejores
 modelos, y el frente nuevo de almacenamiento + costos AWS.
 
-## Compilar
+## Flujo: generar figuras en tu PC → subir a Overleaf
+
+1. **Genera todas las figuras** (copia las reutilizadas de `reports/` y crea las
+   nuevas con matplotlib):
+   ```bash
+   bash generate_figures.sh
+   ```
+   Requiere `python3` + `matplotlib`/`numpy`/`pandas` y el repo completo
+   (necesita `reports/` para las figuras reutilizadas).
+
+2. **Sube la carpeta `presentations/estado_actual/` a Overleaf** (New Project →
+   Upload Project, o arrastra la carpeta). Compila con **pdfLaTeX** (default de
+   Overleaf). No necesita Python: las figuras ya están en `figs/`.
+
+   `main.tex` solo depende de paquetes estándar (`beamer`, tema `Madrid`,
+   `babel` español, `graphicx`, `booktabs`) que Overleaf ya trae.
+
+### Compilar localmente (opcional)
 
 ```bash
-bash build.sh          # tectonic -> latexmk -> pdflatex (lo que esté disponible)
+bash build.sh          # genera figs si faltan + compila (tectonic/latexmk/pdflatex)
 ```
-
-Genera `main.pdf` (16 slides). Si faltan las figuras nuevas, `build.sh` las
-regenera llamando a los scripts.
+Produce `main.pdf` (16 slides). En una TeXLive local mínima puede faltar el
+idioma: `apt-get install texlive-lang-spanish`. Overleaf no necesita esto.
 
 ## Figuras
 

@@ -7,10 +7,11 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$HERE"
 
-# Regenera las figuras nuevas si falta matplotlib-output (idempotente).
-if [ ! -f figs/aws_cost_projection.png ] || [ ! -f figs/market_value_by_sector.png ]; then
-  echo "Generando figuras nuevas..."
-  (cd ../.. && python3 scripts/aws_cost_projection.py && python3 scripts/market_value.py)
+# Asegura que TODAS las figuras existan (reutilizadas + generadas).
+if [ ! -f figs/aws_cost_projection.png ] || [ ! -f figs/market_value_by_sector.png ] \
+   || [ ! -f figs/centroid_drift_by_month.png ]; then
+  echo "Faltan figuras; ejecutando generate_figures.sh..."
+  bash "$HERE/generate_figures.sh"
 fi
 
 if command -v tectonic >/dev/null 2>&1; then
