@@ -673,9 +673,9 @@ def _write_cluster_share_timeseries(metrics: pd.DataFrame, path: Path, top_n: in
             subset = metrics[metrics["cluster_id"] == row["cluster_id"]].sort_values("time_bin")
             x_values = subset["time_bin"].astype(str).map(bin_to_idx)
             ax.plot(x_values, subset["share_jobs"], marker="o", label=row["cluster_label"])
-        ax.set_title(f"Posting Share Timeseries for Top {len(top_clusters)} Fixed Clusters")
-        ax.set_xlabel("Time bin")
-        ax.set_ylabel("Share of postings")
+        ax.set_title(f"Participación de clusters en la ventana observada")
+        ax.set_xlabel("Intervalo")
+        ax.set_ylabel("Share de postings")
         if unique_bins:
             step = max(1, math.ceil(len(unique_bins) / 12))
             ticks = list(range(0, len(unique_bins), step))
@@ -689,6 +689,62 @@ def _write_cluster_share_timeseries(metrics: pd.DataFrame, path: Path, top_n: in
     fig.tight_layout()
     fig.savefig(path, dpi=150)
     plt.close(fig)
+
+
+def prepare_cluster_trajectory_change_data(
+    df: pd.DataFrame,
+    embeddings: np.ndarray,
+    labels: pd.DataFrame,
+    random_state: int,
+    top_n: int = 5,
+) -> pd.DataFrame:
+    """Build top-N start/end projected centroid changes for plotting/tests."""
+    if df.empty:
+        return pd.DataFrame(
+            columns=[
+                "cluster_id",
+                "cluster_label",
+                "start_bin",
+                "end_bin",
+                "start_n",
+                "end_n",
+                "x_start",
+                "y_start",
+                "x_end",
+                "y_end",
+                "projected_distance",
+            ]
+        )
+    projected, _ = _projection_2d(embeddings, random_state)
+    label_map = labels.set_index("cluster_id")["cluster_label"].to_dict()
+    top_clusters = df.groupby("cluster_id").size().sort_values(ascending=False).head(top_n).index.tolist()
+    rows: list[dict[str, Any]] = []
+    for cluster_id in top_clusters:
+        cluster = df[df["cluster_id"] == cluster_id].sort_values("time_bin")
+        bins = sorted(cluster["time_bin"].dropna().unique())
+        if not bins:
+            continue
+        start_bin, end_bin = bins[0], bins[-1]
+        start_group = cluster[cluster["time_bin"] == start_bin]
+        end_group = cluster[cluster["time_bin"] == end_bin]
+        start_point = projected[start_group["_embedding_index"].to_numpy(dtype=int)].mean(axis=0)
+        end_point = projected[end_group["_embedding_index"].to_numpy(dtype=int)].mean(axis=0)
+        rows.append(
+            {
+                "cluster_id": int(cluster_id),
+                "cluster_label": label_map.get(int(cluster_id), f"C{int(cluster_id):02d}"),
+                "start_bin": str(start_bin),
+                "end_bin": str(end_bin),
+                "start_n": int(len(start_group)),
+                "end_n": int(len(end_group)),
+                "x_start": float(start_point[0]),
+                "y_start": float(start_point[1]),
+                "x_end": float(end_point[0]),
+                "y_end": float(end_point[1]),
+                "projected_distance": float(np.linalg.norm(end_point - start_point)),
+            }
+        )
+    return pd.DataFrame(rows).sort_values("projected_distance", ascending=False, ignore_index=True)
 
 
 def _projection_2d(embeddings: np.ndarray, random_state: int) -> tuple[np.ndarray, Any | None]:
@@ -713,42 +769,49 @@ def _write_cluster_semantic_trajectory(
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    fig, ax = plt.subplots(figsize=(10, 8))
+    fig, ax = plt.subplots(figsize=(10, 6.4))
     if df.empty:
-        ax.text(0.5, 0.5, "No temporal cluster trajectories available", ha="center", va="center")
+        ax.text(0.5, 0.5, "No hay trayectoria temporal de clusters suficiente", ha="center", va="center")
         ax.axis("off")
     else:
-        projected, projector = _projection_2d(embeddings, random_state)
-        if projector is not None:
-            projected_centroids = projector.transform(centroids)
-        else:
-            projected_centroids = centroids[:, :2] if centroids.shape[1] >= 2 else np.column_stack([centroids[:, 0], np.zeros(len(centroids))])
-        label_map = labels.set_index("cluster_id")["cluster_label"].to_dict()
-        top_clusters = df.groupby("cluster_id").size().sort_values(ascending=False).head(top_n).index.tolist()
-        ax.scatter(projected_centroids[:, 0], projected_centroids[:, 1], marker="X", s=140, c="#222222", label="Global centroids")
-        for cluster_id in top_clusters:
-            cluster = df[df["cluster_id"] == cluster_id].sort_values("time_bin")
-            points: list[np.ndarray] = []
-            sizes: list[float] = []
-            bins: list[str] = []
-            for time_bin, group in cluster.groupby("time_bin", sort=True):
-                idx = group["_embedding_index"].to_numpy(dtype=int)
-                centroid = embeddings[idx].mean(axis=0).reshape(1, -1)
-                point = projector.transform(centroid)[0] if projector is not None else centroid[0, :2]
-                points.append(point)
-                sizes.append(35 + 8 * math.sqrt(len(group)))
-                bins.append(str(time_bin))
-            if not points:
-                continue
-            arr = np.vstack(points)
-            ax.plot(arr[:, 0], arr[:, 1], marker="o", linewidth=1.4, label=label_map.get(int(cluster_id), str(cluster_id)))
-            ax.scatter(arr[:, 0], arr[:, 1], s=sizes)
-            ax.annotate(bins[-1], (arr[-1, 0], arr[-1, 1]), fontsize=8)
-        ax.set_title("Projected Temporal Cluster Trajectories (2D projection, not clustering space)")
-        ax.set_xlabel("Projection 1")
-        ax.set_ylabel("Projection 2")
+        change = prepare_cluster_trajectory_change_data(df, embeddings, labels, random_state, top_n=top_n)
+        colors = ["#2563eb", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"]
+        for idx, row in change.iterrows():
+            color = colors[idx % len(colors)]
+            ax.scatter(row["x_start"], row["y_start"], s=55 + 8 * math.sqrt(row["start_n"]), color=color, alpha=0.45)
+            ax.scatter(row["x_end"], row["y_end"], s=75 + 8 * math.sqrt(row["end_n"]), color=color, edgecolor="white", linewidth=0.8)
+            ax.annotate(
+                "",
+                xy=(row["x_end"], row["y_end"]),
+                xytext=(row["x_start"], row["y_start"]),
+                arrowprops={"arrowstyle": "->", "lw": 1.8, "color": color, "alpha": 0.9},
+            )
+            label = f"{row['cluster_label']} (Δ={row['projected_distance']:.2f}, n {row['start_n']}→{row['end_n']})"
+            ax.plot([], [], color=color, marker="o", linestyle="-", label=label)
+            ax.annotate(str(row["cluster_id"]), (row["x_end"], row["y_end"]), fontsize=8, color="#1e293b")
+        if not change.empty:
+            ax.text(
+                0.02,
+                0.98,
+                f"Ventana: {change['start_bin'].min()} a {change['end_bin'].max()}",
+                transform=ax.transAxes,
+                va="top",
+                fontsize=9,
+                bbox={"boxstyle": "round,pad=0.3", "facecolor": "white", "edgecolor": "#cbd5e1", "alpha": 0.9},
+            )
+        ax.set_title("Cambio semántico de clusters principales", fontsize=13, fontweight="bold", pad=18)
+        ax.text(
+            0.0,
+            1.02,
+            "Proyección 2D solo para visualización; el clustering se calcula en el espacio original.",
+            transform=ax.transAxes,
+            fontsize=9,
+            color="#475569",
+        )
+        ax.set_xlabel("Proyección 1")
+        ax.set_ylabel("Proyección 2")
         ax.grid(True, alpha=0.25)
-        ax.legend(loc="best", fontsize=8)
+        ax.legend(loc="best", fontsize=7, frameon=False)
     fig.tight_layout()
     fig.savefig(path, dpi=150)
     plt.close(fig)

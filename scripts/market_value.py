@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+import textwrap
 
 import matplotlib
 matplotlib.use("Agg")
@@ -137,20 +138,20 @@ def plot_market_value(
 
     y = np.arange(len(labels))
     height = 0.38
-    fig, ax = plt.subplots(figsize=(10, 6))
+    fig, ax = plt.subplots(figsize=(10.5, 6.3))
     ax.barh(y + height / 2, first, height, label="Inicio de ventana", color="tab:gray", alpha=0.7)
     ax.barh(y - height / 2, last, height, label="Fin de ventana", color="tab:blue")
     ax.set_yticks(y)
     ax.set_yticklabels(labels)
     ax.invert_yaxis()
-    ax.set_xlabel("Valor de mercado ≈ postings × salario mediano (M USD)")
-    ax.set_title("'Market cap' del mercado laboral por sector\n(volumen × salario, ilustrativo)")
+    ax.set_xlabel("Proxy de valor = posting share × salario mediano (M USD)")
+    ax.set_title("Proxy de valor laboral por sector\n(posting share × salario mediano)")
     ax.xaxis.set_major_formatter(mtick.StrMethodFormatter("${x:,.1f}M"))
     ax.grid(True, axis="x", alpha=0.3)
     ax.legend()
-    foot = source_note
-    fig.text(0.01, 0.01, foot, fontsize=7, color="gray")
-    fig.tight_layout(rect=(0, 0.03, 1, 1))
+    foot = textwrap.fill(source_note, width=130)
+    fig.text(0.01, 0.015, foot, fontsize=7, color="gray", va="bottom")
+    fig.tight_layout(rect=(0, 0.075, 1, 1))
     path = out_dir / "market_value_by_sector.png"
     fig.savefig(path, dpi=150)
     plt.close(fig)

@@ -14,6 +14,7 @@ from jobsrec.trends.temporal_clusters import (
     detect_temporal_cluster_schema,
     fit_exponential_decay_by_cluster,
     fit_fixed_clusters,
+    prepare_cluster_trajectory_change_data,
 )
 
 
@@ -172,3 +173,39 @@ def test_temporal_clusters_cli_writes_required_outputs_and_skip_artifact(tmp_pat
     assert (outdir / "cluster_semantic_trajectory.png").exists()
     assert (outdir / "decay_not_available.md").exists()
     assert (outdir / "report.md").exists()
+    assert (outdir / "cluster_semantic_trajectory.png").stat().st_size > 0
+
+
+def test_cluster_trajectory_change_data_limits_to_top_n_clusters() -> None:
+    df = pd.DataFrame(
+        {
+            "cluster_id": [0, 0, 1, 1, 1, 2, 2, 3],
+            "time_bin": ["2024-03", "2024-04", "2024-03", "2024-04", "2024-04", "2024-03", "2024-04", "2024-04"],
+            "_embedding_index": list(range(8)),
+        }
+    )
+    embeddings = np.array(
+        [
+            [0.0, 0.0],
+            [1.0, 0.0],
+            [0.0, 1.0],
+            [0.0, 2.0],
+            [0.2, 2.2],
+            [2.0, 0.0],
+            [2.5, 0.5],
+            [3.0, 3.0],
+        ],
+        dtype=np.float32,
+    )
+    labels = pd.DataFrame(
+        {
+            "cluster_id": [0, 1, 2, 3],
+            "cluster_label": ["C00 | data", "C01 | care", "C02 | sales", "C03 | other"],
+        }
+    )
+
+    change = prepare_cluster_trajectory_change_data(df, embeddings, labels, random_state=42, top_n=2)
+
+    assert len(change) == 2
+    assert set(change["cluster_id"]) == {0, 1}
+    assert change["projected_distance"].notna().all()

@@ -16,6 +16,12 @@
 
 \graphicspath{{figs/}}
 
+\newcommand{\caveat}[1]{%
+  \begin{beamercolorbox}[rounded=true,wd=\linewidth,sep=0.7ex]{block body alerted}%
+    \footnotesize #1%
+  \end{beamercolorbox}%
+}
+
 \title[vectorjobs]{vectorjobs --- Estado actual}
 \subtitle{Centroides, valor de mercado y costos de cómputo}
 \author{Equipo vectorjobs}
@@ -26,6 +32,15 @@
 
 \begin{frame}
   \titlepage
+\end{frame}
+
+\begin{frame}{Alcance y caveat de datos}
+  \begin{block}{Alcance y caveat de datos}
+    La evidencia temporal es una \textbf{comparación de ventana corta}, aproximadamente
+    entre fines de marzo y abril de 2024. Los bins diarios pueden tener bajo
+    soporte; por eso las figuras temporales se leen como diagnósticos y señales
+    preliminares, no como tendencias estables del mercado.
+  \end{block}
 \end{frame}
 
 \begin{frame}{Agenda}
@@ -45,7 +60,7 @@
         \item \textbf{Qwen3-Embedding-0.6B} --- denso, GPU opcional.
         \item \textbf{Mock} --- backend determinista para tests.
       \end{itemize}
-    \item Analítica temporal: deriva de centroides, evolución de skills,
+    \item Analítica temporal: deriva de centroides, comparación de skills en la ventana,
           clustering interpretable y curvas de supervivencia.
   \end{itemize}
   \vfill
@@ -91,13 +106,15 @@
         \item Calculamos centroides \textbf{por día} para el MVP y medimos la
               \textbf{deriva} (distancia coseno entre periodos consecutivos).
         \item La deriva $=$ cuánto se mueve el lenguaje/contenido de un sector
-              en el tiempo.
+              entre intervalos de la ventana observada.
       \end{itemize}
     \end{column}
     \begin{column}{0.45\textwidth}
       \includegraphics[width=\linewidth]{centroid_drift_by_month.png}
     \end{column}
   \end{columns}
+  \vfill
+  \caveat{Ventana corta y bins diarios con soporte desigual: la deriva es una señal diagnóstica preliminar.}
 \end{frame}
 
 \begin{frame}{Centroides en el espacio semántico}
@@ -110,9 +127,11 @@
     \begin{column}{0.5\textwidth}
       \centering
       \includegraphics[width=\linewidth]{cluster_semantic_trajectory.png}\\
-      \footnotesize Trayectoria semántica de los centroides en el tiempo.
+      \footnotesize Cambio semántico observado en la ventana; la proyección 2D es solo visual.
     \end{column}
   \end{columns}
+  \vfill
+  \caveat{Estas proyecciones ayudan a inspeccionar la ventana observada; no prueban una tendencia estable.}
 \end{frame}
 
 \begin{frame}{Clusters interpretables (k=12)}
@@ -133,19 +152,21 @@
         \bottomrule
       \end{tabular}
       \vspace{0.5em}\\
-      \footnotesize C03 (data/marketing) \textbf{creció} de 11\% a 37\% del share
-      en la ventana observada.
+      \footnotesize C03 (data/marketing) muestra una \textbf{señal preliminar}
+      de mayor share: 11\% $\rightarrow$ 37\% en la ventana observada.
     \end{column}
     \begin{column}{0.54\textwidth}
       \centering
       \includegraphics[width=\linewidth]{cluster_share_timeseries.png}\\
-      \footnotesize Share de los clusters más grandes a lo largo del tiempo.
+      \footnotesize Share de los clusters más grandes dentro de la ventana observada.
     \end{column}
   \end{columns}
+  \vfill
+  \caveat{La composición por cluster compara endpoints y bins de una ventana corta; algunos días tienen bajo soporte.}
 \end{frame}
 
 % ------------------------------------------------------------------ %
-\section{Valor de mercado en el tiempo}
+\section{Valor de mercado en la ventana}
 
 \begin{frame}{"Market cap" del mercado laboral: volumen $\times$ salario}
   \begin{columns}[T]
@@ -155,16 +176,14 @@
     \end{column}
     \begin{column}{0.45\textwidth}
       \begin{itemize}
-        \item Valor $\approx$ \#postings $\times$ salario mediano del sector.
+        \item Proxy de valor $\approx$ posting share $\times$ salario mediano.
         \item Combina los dos ejes que ya medimos: \textbf{volumen} (share de
               clusters) y \textbf{salario}.
-        \item Permite comparar el "tamaño económico" de cada sector y su
-              cambio entre inicio y fin de la ventana.
+        \item Permite comparar un proxy de "tamaño económico" entre inicio y
+              fin de la ventana.
       \end{itemize}
       \vspace{0.4em}
-      \footnotesize\textcolor{red}{Ilustrativo}: salario por sector es un
-      supuesto (cobertura real de salario $=29\%$); recalcular con
-      \texttt{jobs.parquet} completo. Ventana corta: \texttt{limited\_temporal\_coverage}.
+      \caveat{Proxy ilustrativo: posting share $\times$ salario mediano, con cobertura salarial incompleta ($\sim$29\%).}
     \end{column}
   \end{columns}
 \end{frame}
@@ -174,7 +193,7 @@
     \begin{column}{0.5\textwidth}
       \centering
       \includegraphics[width=\linewidth]{salary_coverage_by_month.png}\\
-      \footnotesize Cobertura de salario por día (solo $\sim$29\% de las filas).
+      \footnotesize Cobertura de salario utilizable por intervalo; metadatos incompletos.
     \end{column}
     \begin{column}{0.5\textwidth}
       \centering
@@ -182,6 +201,8 @@
       \footnotesize Deriva de centroides ponderada por salario (subset USD).
     \end{column}
   \end{columns}
+  \vfill
+  \caveat{Los campos salariales son metadatos incompletos, no un censo salarial del mercado.}
 \end{frame}
 
 % ------------------------------------------------------------------ %
@@ -219,80 +240,54 @@
   \end{columns}
 \end{frame}
 
-\begin{frame}{Evolución de skills por dominio}
-  \begin{columns}[T]
-    \begin{column}{0.5\textwidth}
-      \centering
-      \includegraphics[width=\linewidth]{skill_evolution_tech.png}\\
-      \footnotesize Tech
-    \end{column}
-    \begin{column}{0.5\textwidth}
-      \centering
-      \includegraphics[width=\linewidth]{skill_evolution_health.png}\\
-      \footnotesize Salud
-    \end{column}
-  \end{columns}
+\begin{frame}{Composición de skills en salud}
+  \centering
+  \includegraphics[width=0.92\linewidth]{skill_evolution_health.png}\\
+  \footnotesize Share de composición: top-5 + Other suma 100\% por intervalo; no es cobertura independiente.
+  \vfill
+  \caveat{La composición de skills es una comparación preliminar de ventana corta; bins con bajo soporte están marcados en la figura.}
 \end{frame}
 
 % ------------------------------------------------------------------ %
 \section{Frente nuevo: almacenamiento y costos AWS}
 
-\begin{frame}{Motivación: ¿cuántos TB y a qué costo?}
-  \begin{itemize}
-    \item Más datos + mejores modelos $\Rightarrow$ más almacenamiento y más
-          cómputo.
-    \item Objetivo: \textbf{estimar TB necesarios} según el crecimiento del
-          proyecto y \textbf{proyectar el costo AWS}.
-    \item Modelo parametrizado (\texttt{scripts/aws\_cost\_projection.py}):
-      \begin{itemize}
-        \item $\sim$12\,KB/job (raw 4.3 + embedding 6 + overhead 2).
-        \item Base: 123.849 jobs/mes; escenarios 0\% / 5\% / 12\% MoM.
-      \end{itemize}
-  \end{itemize}
-\end{frame}
-
-\begin{frame}{Crecimiento de almacenamiento (TB)}
-  \centering
-  \includegraphics[width=0.82\linewidth]{storage_growth_tb.png}\\
-  \footnotesize TB acumulados a 36 meses según el ritmo de ingesta. El factor
-  por job y la tasa de crecimiento son parámetros editables.
-\end{frame}
-
-\begin{frame}{Precios AWS reales y cambios mensuales}
+\begin{frame}{Almacenamiento AWS: TB bajo supuestos editables}
   \begin{columns}[T]
-    \begin{column}{0.5\textwidth}
-      \textbf{Almacenamiento --- S3 Standard (us-east-1)}
-      \begin{itemize}
-        \item \$0.023/GB-mes (primeros 50 TB)
-        \item \$0.022 (siguientes 450 TB)
-        \item \$0.021 (>500 TB)
-      \end{itemize}
-      \vspace{0.5em}
-      \textbf{Cómputo --- GPU EC2}
-      \begin{itemize}
-        \item $-45\%$ jun-2025 (p5.48xlarge \$3.86$\rightarrow$\$2.16/h)
-        \item $+15\%$ ene-2026 (H200 capacity blocks)
-      \end{itemize}
+    \begin{column}{0.58\textwidth}
+      \centering
+      \includegraphics[width=\linewidth]{storage_growth_tb.png}
     \end{column}
-    \begin{column}{0.5\textwidth}
+    \begin{column}{0.42\textwidth}
       \begin{itemize}
-        \item El precio del cómputo \textbf{no} baja de forma monótona: cambia
-              mes a mes según oferta/demanda de GPUs.
-        \item Conviene seguir el precio mensual y comparar antes de
-              re-embeddear todo el corpus.
+        \item Estima TB acumulados según ingesta y KB/job.
+        \item Supuesto base: $\sim$12\,KB/job (raw + embedding + overhead).
+        \item Escenarios: 0\%, 5\% y 12\% de crecimiento mensual.
       \end{itemize}
-      \vspace{0.3em}
-      \footnotesize Fuentes: nops.io / cloudzero (S3 2026); cloudoptimo
-      (recorte jun-2025); theregister / itpro (alza ene-2026).
+      \caveat{Modelo paramétrico de almacenamiento; no mide uso real ni TCO productivo completo.}
     \end{column}
   \end{columns}
 \end{frame}
 
-\begin{frame}{Proyección de costo mensual (S3 + cómputo)}
-  \centering
-  \includegraphics[width=0.86\linewidth]{aws_cost_projection.png}\\
-  \footnotesize Costo mensual proyectado (escenario base). Las líneas rojas
-  marcan los cambios reales de precio de GPU.
+\begin{frame}{Costo AWS mensual: S3 + embeddings}
+  \begin{columns}[T]
+    \begin{column}{0.58\textwidth}
+      \centering
+      \includegraphics[width=\linewidth]{aws_cost_projection.png}
+    \end{column}
+    \begin{column}{0.42\textwidth}
+      \begin{itemize}
+        \item Incluye S3 Standard y cómputo GPU para embeddings.
+        \item No incluye serving, red, monitoreo, orquestación, retries ni
+              re-procesos.
+        \item Los cambios de precio GPU motivan recalcular antes de re-embeddear.
+      \end{itemize}
+      \vspace{0.3em}
+      \footnotesize Fuentes: nops.io / cloudzero (S3 2026); cloudoptimo
+      (recorte jun-2025); theregister / itpro (alza ene-2026).
+      \vspace{0.4em}
+      \caveat{Estimación parcial: almacenamiento + cómputo de embeddings, no TCO completo de producción.}
+    \end{column}
+  \end{columns}
 \end{frame}
 
 % ------------------------------------------------------------------ %
@@ -300,8 +295,8 @@
 
 \begin{frame}{Conclusiones y próximos pasos}
   \begin{itemize}
-    \item \textbf{Centroides}: capturan y siguen la deriva de cada sector en el
-          tiempo; base de toda la analítica temporal.
+    \item \textbf{Centroides}: permiten diagnosticar deriva de cada sector en la
+          ventana observada; base de la analítica temporal.
     \item \textbf{Valor de mercado}: volumen $\times$ salario da un proxy de
           "market cap" por sector --- pendiente recalcular con datos completos.
     \item \textbf{Mejores modelos}: TF-IDF $\rightarrow$ Qwen3 $\rightarrow$

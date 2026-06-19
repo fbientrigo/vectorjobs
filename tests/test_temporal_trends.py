@@ -17,9 +17,13 @@ from jobsrec.trends.temporal import (
     compute_temporal_audit,
     compute_temporal_column_coverage,
     parse_listed_time,
+    prepare_salary_coverage_plot_data,
+    prepare_support_aware_drift_plot_data,
     prepare_salary_weights,
     sample_jobs,
 )
+
+from scripts.build_presentation_assets import GENERATED_FIGURES, REQUIRED_FIGURES
 
 
 def _synthetic_jobs(n_months: int = 6, rows_per_month: int = 3) -> pd.DataFrame:
@@ -164,6 +168,7 @@ def test_temporal_demo_cli_writes_required_outputs(tmp_path: Path) -> None:
     assert (figures_dir / "centroid_drift_by_month.png").exists()
     assert (figures_dir / "top_rising_skills.png").exists()
     assert (figures_dir / "top_declining_skills.png").exists()
+    assert (figures_dir / "centroid_drift_by_month.png").stat().st_size > 0
 
 
 def test_temporal_audit_cli_writes_schema_outputs(tmp_path: Path) -> None:
@@ -414,6 +419,39 @@ def test_salary_weighted_centroid_drift_outputs_required_columns(tmp_path: Path)
     assert centroids_path.exists()
 
 
+def test_support_aware_drift_plot_data_flags_low_n_bins() -> None:
+    drift = pd.DataFrame(
+        {
+            "month": ["2024-03-30", "2024-04-01"],
+            "centroid_drift": [0.7, 0.1],
+            "jobs_in_month": [1, 250],
+        }
+    )
+
+    plot_df = prepare_support_aware_drift_plot_data(drift, low_support_threshold=100)
+
+    assert plot_df.loc[0, "low_support"] == np.True_
+    assert plot_df.loc[1, "low_support"] == np.False_
+    assert plot_df["marker_size"].gt(0).all()
+
+
+def test_salary_coverage_plot_data_exposes_support_and_overall_reference() -> None:
+    metadata = pd.DataFrame(
+        {
+            "month": ["2024-02-01", "2024-04-01"],
+            "n_jobs": [1, 9],
+            "n_salary_jobs": [1, 2],
+            "salary_coverage": [1.0, 2 / 9],
+        }
+    )
+
+    plot_df, overall = prepare_salary_coverage_plot_data(metadata, low_support_threshold=5)
+
+    assert plot_df.loc[0, "low_support"] == np.True_
+    assert plot_df.loc[0, "salary_coverage"] == 1.0
+    assert overall == 0.3
+
+
 def test_temporal_demo_cli_time_column_and_salary_weighting_outputs(tmp_path: Path) -> None:
     silver_path = tmp_path / "jobs.parquet"
     output_dir = tmp_path / "weighted"
@@ -448,6 +486,20 @@ def test_temporal_demo_cli_time_column_and_salary_weighting_outputs(tmp_path: Pa
     assert (output_dir / "salary_weight_diagnostics.parquet").exists()
     assert (output_dir / "figures" / "centroid_drift_salary_weighted_by_month.png").exists()
     assert (output_dir / "figures" / "salary_coverage_by_month.png").exists()
+    assert (output_dir / "figures" / "centroid_drift_salary_weighted_by_month.png").stat().st_size > 0
+    assert (output_dir / "figures" / "salary_coverage_by_month.png").stat().st_size > 0
     assert {"n_salary_from", "n_salary_to", "salary_coverage_from", "salary_coverage_to"}.issubset(
         weighted.columns
     )
+
+
+def test_beamer_figure_references_are_packaged_and_no_red_caveats() -> None:
+    tex = Path("presentations/estado_actual/main.tex").read_text(encoding="utf-8")
+    referenced = set()
+    for part in tex.split("\\includegraphics")[1:]:
+        name = part.split("{", 1)[1].split("}", 1)[0]
+        referenced.add(Path(name).name)
+    packaged = set(REQUIRED_FIGURES) | set(GENERATED_FIGURES)
+
+    assert referenced <= packaged
+    assert "\\textcolor{red}" not in tex

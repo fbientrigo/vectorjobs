@@ -256,63 +256,131 @@ def compute_domain_skill_monthly(job_skills_long: pd.DataFrame, job_domains: pd.
     return domain_skill[DOMAIN_SKILL_MONTHLY_COLUMNS]
 
 
+def prepare_skill_composition_plot_data(
+    domain_df: pd.DataFrame,
+    top_n: int = 5,
+    low_support_threshold: int = 100,
+) -> tuple[pd.DataFrame, list[str]]:
+    """Normalize skill mentions to a per-bin 100% composition with Other."""
+    columns = ["time_bin", "skill", "skill_job_count", "composition_share", "job_count", "low_support"]
+    if domain_df.empty:
+        return pd.DataFrame(columns=columns), []
+    work = domain_df.copy()
+    work["skill_job_count"] = pd.to_numeric(work["skill_job_count"], errors="coerce").fillna(0.0)
+    work["job_count"] = pd.to_numeric(work["job_count"], errors="coerce").fillna(0).astype(int)
+    top_skills = (
+        work.groupby("skill")["skill_job_count"]
+        .sum()
+        .sort_values(ascending=False)
+        .head(top_n)
+        .index
+        .astype(str)
+        .tolist()
+    )
+    top_skills = [skill for skill in top_skills if skill.lower() != "other"]
+    rows: list[dict[str, object]] = []
+    for time_bin, group in work.groupby("time_bin", sort=True):
+        total_mentions = float(group["skill_job_count"].sum())
+        if total_mentions <= 0:
+            continue
+        support = int(group["job_count"].max())
+        for skill in top_skills:
+            count = float(group.loc[group["skill"].astype(str) == skill, "skill_job_count"].sum())
+            rows.append(
+                {
+                    "time_bin": str(time_bin),
+                    "skill": skill,
+                    "skill_job_count": count,
+                    "composition_share": count / total_mentions,
+                    "job_count": support,
+                    "low_support": support < low_support_threshold,
+                }
+            )
+        other_count = float(group.loc[~group["skill"].astype(str).isin(top_skills), "skill_job_count"].sum())
+        rows.append(
+            {
+                "time_bin": str(time_bin),
+                "skill": "Other",
+                "skill_job_count": other_count,
+                "composition_share": other_count / total_mentions,
+                "job_count": support,
+                "low_support": support < low_support_threshold,
+            }
+        )
+    result = pd.DataFrame(rows, columns=columns)
+    ordered_skills = top_skills + ["Other"] if top_skills else []
+    return result, ordered_skills
+
+
 def _write_skill_evolution_plot(domain_df: pd.DataFrame, domain_label: str, path: Path, top_n: int) -> str:
     import matplotlib
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+    import matplotlib.ticker as mtick
 
     path.parent.mkdir(parents=True, exist_ok=True)
     fig, ax = plt.subplots(figsize=(11, 6))
     if domain_df.empty or domain_df["time_bin"].nunique() == 0:
-        ax.text(0.5, 0.5, f"No skill timeline data for {domain_label}", ha="center", va="center")
+        ax.text(0.5, 0.5, f"No hay datos suficientes de skills para {domain_label}", ha="center", va="center")
         ax.axis("off")
         status = "insufficient_data"
     else:
-        top_skills = (
-            domain_df.groupby("skill")["skill_job_count"]
-            .sum()
-            .sort_values(ascending=False)
-            .head(top_n)
-            .index
-            .tolist()
-        )
-        # Premium, modern palette
-        colors = ["#6366f1", "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316", "#a855f7", "#06b6d4", "#84cc16"]
-        
-        unique_bins = sorted(domain_df["time_bin"].dropna().unique())
-        bin_to_idx = {b: i for i, b in enumerate(unique_bins)}
-        
-        plot_df = domain_df[domain_df["skill"].isin(top_skills)].copy()
-        plot_df["x_idx"] = plot_df["time_bin"].map(bin_to_idx)
-        
-        for idx, (skill, group) in enumerate(plot_df.groupby("skill")):
-            group = group.sort_values("x_idx")
-            color = colors[idx % len(colors)]
-            ax.plot(group["x_idx"], group["share_pct"], marker="o", markersize=4, linewidth=1.5, alpha=0.85, color=color, label=skill)
-            
-        ax.set_title(f"{domain_label}: Skill Share Evolution", fontsize=13, fontweight="bold", pad=15, color="#1e293b")
-        ax.set_xlabel("Time bin", fontsize=10, labelpad=8, color="#475569")
-        ax.set_ylabel("Share of domain postings requiring skill (%)", fontsize=10, labelpad=8, color="#475569")
-        
-        # Clean, modern style
+        composition, ordered_skills = prepare_skill_composition_plot_data(domain_df, top_n=min(top_n, 5))
+        if composition.empty:
+            ax.text(0.5, 0.5, f"No hay menciones de skills para {domain_label}", ha="center", va="center")
+            ax.axis("off")
+            status = "insufficient_data"
+        else:
+            unique_bins = sorted(composition["time_bin"].dropna().unique())
+            x = np.arange(len(unique_bins))
+            matrix = []
+            pivot = composition.pivot_table(
+                index="time_bin",
+                columns="skill",
+                values="composition_share",
+                aggfunc="sum",
+                fill_value=0.0,
+            )
+            for skill in ordered_skills:
+                values = pivot.reindex(unique_bins).get(skill, pd.Series(0.0, index=unique_bins)).to_numpy(dtype=float)
+                matrix.append(values)
+            colors = ["#2563eb", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#94a3b8"]
+            ax.stackplot(x, matrix, labels=ordered_skills, colors=colors[: len(matrix)], alpha=0.9)
+            support = composition.groupby("time_bin")["job_count"].max().reindex(unique_bins).fillna(0).astype(int)
+            low_support = support < 100
+            for idx, is_low in enumerate(low_support.tolist()):
+                if is_low:
+                    ax.axvspan(idx - 0.5, idx + 0.5, color="#e2e8f0", alpha=0.35, zorder=0)
+            ax.set_title(f"Composición de skills en {domain_label}", fontsize=13, fontweight="bold", pad=18, color="#1e293b")
+            ax.text(
+                0.0,
+                1.02,
+                "Share de composición: top-5 + Other suma 100% por intervalo; bins n<100 sombreados.",
+                transform=ax.transAxes,
+                fontsize=9,
+                color="#475569",
+            )
+            ax.set_xlabel("Intervalo", fontsize=10, labelpad=8, color="#475569")
+            ax.set_ylabel("Composición de menciones de skills", fontsize=10, labelpad=8, color="#475569")
+            ax.set_ylim(0, 1)
+            ax.yaxis.set_major_formatter(mtick.PercentFormatter(1.0))
+            step = max(1, math.ceil(len(unique_bins) / 12))
+            ticks = list(range(0, len(unique_bins), step))
+            if ticks[-1] != len(unique_bins) - 1:
+                ticks.append(len(unique_bins) - 1)
+            ax.set_xticks(ticks)
+            ax.set_xticklabels([unique_bins[i] for i in ticks])
+            ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1), borderaxespad=0, frameon=False, fontsize=8)
+            status = "saved"
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
         ax.spines["left"].set_color("#cbd5e1")
         ax.spines["bottom"].set_color("#cbd5e1")
         ax.grid(axis="y", linestyle="--", alpha=0.5, color="#cbd5e1")
         ax.grid(visible=False, axis="x")
-        
-        step = max(1, math.ceil(len(unique_bins) / 12))
-        ticks = list(range(0, len(unique_bins), step))
-        if ticks[-1] != len(unique_bins) - 1:
-            ticks.append(len(unique_bins) - 1)
-        ax.set_xticks(ticks)
-        ax.set_xticklabels([unique_bins[i] for i in ticks])
         ax.tick_params(axis="x", rotation=45, colors="#475569", labelsize=8)
         ax.tick_params(axis="y", colors="#475569", labelsize=8)
-        ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1), borderaxespad=0, frameon=False, fontsize=8)
-        status = "saved"
     fig.tight_layout()
     fig.savefig(path, dpi=150, bbox_inches="tight")
     plt.close(fig)

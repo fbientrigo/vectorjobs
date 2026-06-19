@@ -960,6 +960,200 @@ def _plot_bar(df: pd.DataFrame, x: str, y: str, path: Path, title: str, color: s
     plt.close(fig)
 
 
+def prepare_support_aware_drift_plot_data(
+    drift: pd.DataFrame,
+    support_column: str = "jobs_in_month",
+    low_support_threshold: int = 100,
+) -> pd.DataFrame:
+    """Return centroid-drift rows with explicit support flags for plotting/tests."""
+    if drift.empty:
+        return pd.DataFrame(columns=["month", "centroid_drift", "n_jobs", "low_support", "marker_size"])
+    out = drift.dropna(subset=["centroid_drift"]).copy().reset_index(drop=True)
+    if support_column in out.columns:
+        out["n_jobs"] = pd.to_numeric(out[support_column], errors="coerce").fillna(0).astype(int)
+    else:
+        out["n_jobs"] = 0
+    out["low_support"] = out["n_jobs"] < low_support_threshold
+    max_n = max(float(out["n_jobs"].max()), 1.0)
+    out["marker_size"] = 35.0 + 185.0 * np.sqrt(out["n_jobs"].clip(lower=0) / max_n)
+    return out[["month", "centroid_drift", "n_jobs", "low_support", "marker_size"]]
+
+
+def _plot_support_aware_drift(
+    drift: pd.DataFrame,
+    path: Path,
+    title: str,
+    support_column: str = "jobs_in_month",
+    low_support_threshold: int = 100,
+    salary_subset: bool = False,
+) -> None:
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    plot_df = prepare_support_aware_drift_plot_data(drift, support_column, low_support_threshold)
+    fig, ax = plt.subplots(figsize=(10, 5.6))
+    if plot_df.empty:
+        ax.text(0.5, 0.5, "No hay deriva temporal suficiente para graficar", ha="center", va="center")
+        ax.axis("off")
+    else:
+        x = np.arange(len(plot_df))
+        reliable = ~plot_df["low_support"]
+        ax.plot(x, plot_df["centroid_drift"], color="#64748b", linewidth=1.2, alpha=0.7)
+        ax.vlines(x, 0, plot_df["centroid_drift"], color="#cbd5e1", linewidth=1.0)
+        ax.scatter(
+            x[reliable],
+            plot_df.loc[reliable, "centroid_drift"],
+            s=plot_df.loc[reliable, "marker_size"],
+            color="#5b6ee1",
+            edgecolor="white",
+            linewidth=0.8,
+            label=f"n >= {low_support_threshold}",
+            zorder=3,
+        )
+        ax.scatter(
+            x[~reliable],
+            plot_df.loc[~reliable, "centroid_drift"],
+            s=plot_df.loc[~reliable, "marker_size"],
+            color="#cbd5e1",
+            edgecolor="#64748b",
+            linewidth=0.8,
+            label=f"n < {low_support_threshold}",
+            zorder=3,
+        )
+        for idx, row in plot_df[plot_df["low_support"]].iterrows():
+            ax.annotate(
+                f"n={int(row['n_jobs'])}",
+                (int(idx), float(row["centroid_drift"])),
+                textcoords="offset points",
+                xytext=(0, 6),
+                ha="center",
+                fontsize=7,
+                color="#475569",
+            )
+        labels = plot_df["month"].astype(str).tolist()
+        step = max(1, math.ceil(len(labels) / 12))
+        ticks = list(range(0, len(labels), step))
+        if ticks[-1] != len(labels) - 1:
+            ticks.append(len(labels) - 1)
+        ax.set_xticks(ticks)
+        ax.set_xticklabels([labels[i] for i in ticks], rotation=45, ha="right")
+        ax.set_ylabel("Distancia coseno")
+        ax.set_xlabel("Intervalo")
+        ax.set_title(title, fontsize=13, fontweight="bold", pad=18)
+        subtitle = "Distancia coseno entre centroides semánticos consecutivos"
+        if salary_subset:
+            subtitle += "; subset USD con salario utilizable"
+        ax.text(0.0, 1.02, subtitle, transform=ax.transAxes, fontsize=9, color="#475569")
+        ax.text(
+            0.99,
+            0.02,
+            "Bins con bajo n son diagnósticos, no tendencia estable.",
+            transform=ax.transAxes,
+            ha="right",
+            fontsize=8,
+            color="#64748b",
+        )
+        ax.grid(axis="y", alpha=0.25)
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        ax.legend(loc="upper left", fontsize=8, frameon=False)
+    fig.tight_layout()
+    fig.savefig(path, dpi=140)
+    plt.close(fig)
+
+
+def prepare_salary_coverage_plot_data(
+    salary_metadata: pd.DataFrame,
+    low_support_threshold: int = 100,
+) -> tuple[pd.DataFrame, float]:
+    """Return salary coverage rows with overall reference and low-n flags."""
+    if salary_metadata.empty:
+        return pd.DataFrame(columns=["month", "n_jobs", "n_salary_jobs", "salary_coverage", "low_support"]), 0.0
+    out = salary_metadata.copy().reset_index(drop=True)
+    out["n_jobs"] = pd.to_numeric(out.get("n_jobs", 0), errors="coerce").fillna(0).astype(int)
+    out["n_salary_jobs"] = pd.to_numeric(out.get("n_salary_jobs", 0), errors="coerce").fillna(0).astype(int)
+    if "salary_coverage" not in out:
+        out["salary_coverage"] = np.where(out["n_jobs"] > 0, out["n_salary_jobs"] / out["n_jobs"], 0.0)
+    out["salary_coverage"] = pd.to_numeric(out["salary_coverage"], errors="coerce").fillna(0.0).clip(0.0, 1.0)
+    out["low_support"] = out["n_jobs"] < low_support_threshold
+    total_jobs = int(out["n_jobs"].sum())
+    overall = float(out["n_salary_jobs"].sum() / total_jobs) if total_jobs else 0.0
+    return out[["month", "n_jobs", "n_salary_jobs", "salary_coverage", "low_support"]], overall
+
+
+def _plot_salary_coverage(
+    salary_metadata: pd.DataFrame,
+    path: Path,
+    low_support_threshold: int = 100,
+) -> None:
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import matplotlib.ticker as mtick
+
+    plot_df, overall = prepare_salary_coverage_plot_data(salary_metadata, low_support_threshold)
+    fig, ax = plt.subplots(figsize=(10, 5.6))
+    if plot_df.empty:
+        ax.text(0.5, 0.5, "No hay metadatos salariales suficientes", ha="center", va="center")
+        ax.axis("off")
+    else:
+        x = np.arange(len(plot_df))
+        colors = np.where(plot_df["low_support"], "#cbd5e1", "#2563eb")
+        ax.bar(x, plot_df["salary_coverage"], color=colors, edgecolor="#64748b", linewidth=0.4)
+        ax.axhline(overall, color="#ef4444", linestyle="--", linewidth=1.2, label=f"Cobertura total: {overall:.0%}")
+        for idx, row in plot_df.iterrows():
+            if bool(row["low_support"]) or idx % max(1, math.ceil(len(plot_df) / 14)) == 0:
+                ax.annotate(
+                    f"n={int(row['n_jobs'])}",
+                    (idx, float(row["salary_coverage"])),
+                    textcoords="offset points",
+                    xytext=(0, 4),
+                    ha="center",
+                    fontsize=7,
+                    color="#475569",
+                    rotation=90 if len(plot_df) > 25 else 0,
+                )
+        labels = plot_df["month"].astype(str).tolist()
+        step = max(1, math.ceil(len(labels) / 12))
+        ticks = list(range(0, len(labels), step))
+        if ticks[-1] != len(labels) - 1:
+            ticks.append(len(labels) - 1)
+        ax.set_xticks(ticks)
+        ax.set_xticklabels([labels[i] for i in ticks], rotation=45, ha="right")
+        ax.set_ylim(0, min(1.05, max(1.0, float(plot_df["salary_coverage"].max()) + 0.08)))
+        ax.yaxis.set_major_formatter(mtick.PercentFormatter(1.0))
+        ax.set_ylabel("Cobertura salarial")
+        ax.set_xlabel("Intervalo")
+        ax.set_title("Cobertura salarial por intervalo", fontsize=13, fontweight="bold", pad=18)
+        ax.text(
+            0.0,
+            1.02,
+            "Postings con salario utilizable / postings totales del intervalo",
+            transform=ax.transAxes,
+            fontsize=9,
+            color="#475569",
+        )
+        ax.text(
+            0.99,
+            0.02,
+            "Campos salariales incompletos: no es un censo salarial del mercado.",
+            transform=ax.transAxes,
+            ha="right",
+            fontsize=8,
+            color="#64748b",
+        )
+        ax.grid(axis="y", alpha=0.25)
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        ax.legend(loc="upper left", fontsize=8, frameon=False)
+    fig.tight_layout()
+    fig.savefig(path, dpi=140)
+    plt.close(fig)
+
+
 def _write_required_plots(
     sampled: pd.DataFrame,
     drift: pd.DataFrame,
@@ -976,20 +1170,18 @@ def _write_required_plots(
     volume = sampled.groupby("month").size().rename("jobs").reset_index()
     time_bin = str(sampled.get("_time_bin", pd.Series(["M"])).dropna().iloc[0]) if "_time_bin" in sampled else "M"
     period_label = {"D": "Day", "H": "Hour", "W": "Week", "M": "Month"}.get(time_bin.upper(), "Period")
-    _plot_bar(volume, "month", "jobs", paths[0], f"Job Volume by {period_label}", "#2f6f73")
-    _plot_bar(
+    spanish_period = {"Day": "día", "Hour": "hora", "Week": "semana", "Month": "mes", "Period": "intervalo"}.get(period_label, "intervalo")
+    _plot_bar(volume, "month", "jobs", paths[0], f"Volumen de postings por {spanish_period}", "#2f6f73")
+    _plot_support_aware_drift(
         drift.dropna(subset=["centroid_drift"]),
-        "month",
-        "centroid_drift",
         paths[1],
-        f"Centroid Drift by {period_label}",
-        "#9b5de5",
+        "Desplazamiento semántico entre intervalos",
     )
     rising = growth.sort_values("share_delta", ascending=False).head(15)
     declining = growth[growth["share_delta"] < 0].sort_values("share_delta", ascending=True).head(15).copy()
     declining["share_delta_abs"] = declining["share_delta"].abs()
-    _plot_bar(rising, "skill", "share_delta", paths[2], "Top Rising Skills", "#1b9e77")
-    _plot_bar(declining, "skill", "share_delta_abs", paths[3], "Top Declining Skills", "#d95f02")
+    _plot_bar(rising, "skill", "share_delta", paths[2], "Skills con mayor aumento en la ventana", "#1b9e77")
+    _plot_bar(declining, "skill", "share_delta_abs", paths[3], "Skills con mayor caída en la ventana", "#d95f02")
     return paths
 
 
@@ -1006,25 +1198,16 @@ def _write_salary_weighted_plots(
         plot_df = salary_drift[["month_to", "cosine_distance"]].rename(
             columns={"month_to": "month", "cosine_distance": "centroid_drift"}
         )
-        _plot_bar(
+        _plot_support_aware_drift(
             plot_df,
-            "month",
-            "centroid_drift",
             drift_plot,
-            f"Salary-Weighted Centroid Drift by {period_label}",
-            "#6a4c93",
+            "Desplazamiento semántico ponderado por salario",
+            salary_subset=True,
         )
         paths.append(drift_plot)
     if not salary_metadata.empty:
         coverage_plot = figures_dir / "salary_coverage_by_month.png"
-        _plot_bar(
-            salary_metadata,
-            "month",
-            "salary_coverage",
-            coverage_plot,
-            f"Salary Coverage by {period_label}",
-            "#1982c4",
-        )
+        _plot_salary_coverage(salary_metadata, coverage_plot)
         paths.append(coverage_plot)
     return paths
 
@@ -1057,10 +1240,10 @@ def _optional_cluster_outputs(
         fig_path = figures_dir / "job_cluster_map_svd.png"
         fig, ax = plt.subplots(figsize=(8, 6))
         scatter = ax.scatter(dense[:, 0], dense[:, 1], c=labels, cmap="tab10", s=18, alpha=0.75)
-        ax.set_title("Job Cluster Map")
-        ax.set_xlabel("Component 1")
-        ax.set_ylabel("Component 2")
-        fig.colorbar(scatter, ax=ax, label="Cluster")
+        ax.set_title("Mapa diagnóstico de clusters de postings")
+        ax.set_xlabel("Componente 1")
+        ax.set_ylabel("Componente 2")
+        fig.colorbar(scatter, ax=ax, label="Cluster diagnóstico")
         fig.tight_layout()
         fig.savefig(fig_path, dpi=140)
         plt.close(fig)

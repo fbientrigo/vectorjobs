@@ -93,19 +93,21 @@ def plot_storage_growth(out_dir: Path, base_jobs_per_month: int, horizon_months:
     months = np.arange(horizon_months)
     fig, ax = plt.subplots(figsize=(10, 5.5))
     for label, growth in SCENARIOS.items():
+        series = storage_series(growth, base_jobs_per_month, horizon_months)
         ax.plot(
             months,
-            storage_series(growth, base_jobs_per_month, horizon_months),
+            series,
             marker="o",
             markersize=3,
             label=label,
         )
-    ax.set_title("Crecimiento de almacenamiento acumulado (vectorjobs)")
+        ax.annotate(f"{series[-1]:.2f} TB", (months[-1], series[-1]), textcoords="offset points", xytext=(4, 0), fontsize=8)
+    ax.set_title("Almacenamiento acumulado bajo supuestos paramétricos")
     ax.set_xlabel("Meses desde hoy")
     ax.set_ylabel("Terabytes acumulados (TB)")
     ax.grid(True, alpha=0.3)
     ax.legend(title="Escenario de ingesta")
-    foot = (f"~{TOTAL_KB_PER_JOB:.1f} KB/job (raw {KB_PER_JOB['raw_text']} + "
+    foot = (f"Estimación paramétrica, no uso observado. ~{TOTAL_KB_PER_JOB:.1f} KB/job (raw {KB_PER_JOB['raw_text']} + "
             f"emb {KB_PER_JOB['qwen_embedding']} + overhead "
             f"{KB_PER_JOB['silver_index_overhead']}); base "
             f"{base_jobs_per_month:,} jobs/mes")
@@ -132,7 +134,7 @@ def plot_cost_projection(out_dir: Path, base_jobs_per_month: int, horizon_months
 
     ax_price.step(months, gpu_hr_price, where="post", color="tab:red")
     ax_price.set_ylabel("GPU $/hora")
-    ax_price.set_title("Precio de cómputo GPU EC2 (cambios reales) y costo mensual proyectado")
+    ax_price.set_title("Costo AWS mensual estimado: S3 + cómputo de embeddings")
     ax_price.grid(True, alpha=0.3)
     ax_price.annotate("-45% (jun-2025)", xy=(pd.Timestamp("2025-06-01"), GPU_AFTER_CUT),
                       xytext=(pd.Timestamp("2025-06-01"), GPU_BASELINE * 0.8),
@@ -151,7 +153,8 @@ def plot_cost_projection(out_dir: Path, base_jobs_per_month: int, horizon_months
     ax_cost.yaxis.set_major_formatter(mtick.StrMethodFormatter("${x:,.0f}"))
     ax_cost.grid(True, alpha=0.3)
     ax_cost.legend(loc="upper left")
-    foot = (f"S3 tiered $0.023/0.022/0.021 GB-mo; embeddings "
+    foot = (f"Modelo parcial, no TCO productivo: S3 + compute de embeddings. "
+            f"S3 tiered $0.023/0.022/0.021 GB-mo; "
             f"{JOBS_PER_GPU_HOUR:,} jobs/GPU-h; escenario base 5%/mes")
     fig.text(0.01, 0.01, foot, fontsize=7, color="gray")
     fig.tight_layout(rect=(0, 0.03, 1, 1))
