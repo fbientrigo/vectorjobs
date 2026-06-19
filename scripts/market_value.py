@@ -21,6 +21,7 @@ La figura se marca como *ilustrativa* y arrastra el caveat de cobertura
 """
 from __future__ import annotations
 
+import argparse
 from pathlib import Path
 
 import matplotlib
@@ -28,9 +29,11 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 import numpy as np
+import pandas as pd
 
-OUT_DIR = Path("presentations/estado_actual/figs")
+DEFAULT_OUT_DIR = Path("presentations/estado_actual/figs")
 TOTAL_ROWS = 10_000  # rows used in reports/temporal_clusters/report.md
+DEFAULT_MEDIAN_SALARY = 75_000
 
 # (sector, n_jobs, first_share, last_share, salario_mediano_USD)
 # n_jobs / shares: reales del report. Salario: supuesto por sector (referencia).
@@ -47,15 +50,86 @@ SECTORS = [
 ]
 
 
-def market_value(share: float, salary: float) -> float:
+def market_value(share: float, salary: float, total_rows: int = TOTAL_ROWS) -> float:
     """Valor de mercado mensual aproximado = postings x salario mediano."""
-    return share * TOTAL_ROWS * salary
+    return share * total_rows * salary
 
 
-def plot_market_value() -> Path:
+def _load_cluster_metrics(path: Path) -> pd.DataFrame:
+    if path.suffix.lower() == ".csv":
+        return pd.read_csv(path)
+    return pd.read_parquet(path)
+
+
+def _sector_rows_from_metrics(
+    path: Path,
+    min_bin_jobs: int = 100,
+) -> tuple[list[tuple[str, int, float, float, float]], str]:
+    metrics = _load_cluster_metrics(path)
+    required = {"time_bin", "cluster_label", "n_jobs", "share_jobs"}
+    missing = required - set(metrics.columns)
+    if missing:
+        raise ValueError(f"{path} is missing required columns: {sorted(missing)}")
+    if metrics.empty:
+        raise ValueError(f"{path} has no rows")
+
+    metrics = metrics.copy()
+    metrics["time_bin"] = metrics["time_bin"].astype(str)
+    totals_by_bin = metrics.groupby("time_bin")["n_jobs"].sum().sort_index()
+    eligible_bins = totals_by_bin[totals_by_bin >= min_bin_jobs]
+    if eligible_bins.empty:
+        eligible_bins = totals_by_bin
+    first_bin = str(eligible_bins.index[0])
+    last_bin = str(eligible_bins.index[-1])
+    total_rows = int(totals_by_bin.max())
+    total_rows = max(total_rows, 1)
+
+    if "salary_median" in metrics.columns:
+        salary = pd.to_numeric(metrics["salary_median"], errors="coerce")
+    else:
+        salary = pd.Series([np.nan] * len(metrics), index=metrics.index)
+    fallback_salary = float(salary.dropna().median()) if salary.notna().any() else DEFAULT_MEDIAN_SALARY
+    metrics["salary_for_value"] = salary.fillna(fallback_salary)
+
+    first = metrics[metrics["time_bin"] == first_bin].set_index("cluster_label")
+    last = metrics[metrics["time_bin"] == last_bin].set_index("cluster_label")
+    labels = sorted(set(first.index) | set(last.index))
+
+    rows: list[tuple[str, int, float, float, float]] = []
+    for label in labels:
+        first_row = first.loc[label] if label in first.index else None
+        last_row = last.loc[label] if label in last.index else None
+        first_share = float(first_row["share_jobs"]) if first_row is not None else 0.0
+        last_share = float(last_row["share_jobs"]) if last_row is not None else 0.0
+        n_jobs = int(last_row["n_jobs"]) if last_row is not None else int(first_row["n_jobs"])
+        salary_value = (
+            float(last_row["salary_for_value"])
+            if last_row is not None
+            else float(first_row["salary_for_value"])
+        )
+        rows.append((str(label), n_jobs, first_share, last_share, salary_value))
+
+    source_note = (
+        f"Volumen/share: {path} ({first_bin} -> {last_bin}). "
+        f"Salario: salary_median por cluster; faltantes rellenados con ${fallback_salary:,.0f}; "
+        f"bins con <{min_bin_jobs} postings omitidos en endpoints."
+    )
+    return rows, source_note
+
+
+def plot_market_value(
+    out_dir: Path,
+    sectors: list[tuple[str, int, float, float, float]],
+    source_note: str,
+    total_rows: int = TOTAL_ROWS,
+) -> Path:
     labels = [s[0] for s in SECTORS]
-    first = np.array([market_value(s[2], s[4]) for s in SECTORS]) / 1e6
-    last = np.array([market_value(s[3], s[4]) for s in SECTORS]) / 1e6
+    if sectors:
+        labels = [s[0] for s in sectors]
+    else:
+        sectors = SECTORS
+    first = np.array([market_value(s[2], s[4], total_rows) for s in sectors]) / 1e6
+    last = np.array([market_value(s[3], s[4], total_rows) for s in sectors]) / 1e6
 
     order = np.argsort(last)[::-1]
     labels = [labels[i] for i in order]
@@ -74,20 +148,35 @@ def plot_market_value() -> Path:
     ax.xaxis.set_major_formatter(mtick.StrMethodFormatter("${x:,.1f}M"))
     ax.grid(True, axis="x", alpha=0.3)
     ax.legend()
-    foot = ("Volumen/share: reports/temporal_clusters (10k filas, abr-2024). "
-            "Salario: supuesto por sector. Caveat: limited_temporal_coverage — "
-            "recalcular con jobs.parquet completo.")
+    foot = source_note
     fig.text(0.01, 0.01, foot, fontsize=7, color="gray")
     fig.tight_layout(rect=(0, 0.03, 1, 1))
-    path = OUT_DIR / "market_value_by_sector.png"
+    path = out_dir / "market_value_by_sector.png"
     fig.savefig(path, dpi=150)
     plt.close(fig)
     return path
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--metrics", type=Path, help="cluster_time_metrics.parquet from temporal-clusters.")
+    parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
+    parser.add_argument("--min-bin-jobs", type=int, default=100)
+    return parser.parse_args()
+
+
 def main() -> int:
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    print("Wrote", plot_market_value())
+    args = parse_args()
+    args.out_dir.mkdir(parents=True, exist_ok=True)
+    if args.metrics:
+        sectors, note = _sector_rows_from_metrics(args.metrics, min_bin_jobs=args.min_bin_jobs)
+        total_rows = max(sum(s[1] for s in sectors), 1)
+    else:
+        sectors = SECTORS
+        total_rows = TOTAL_ROWS
+        note = ("Volumen/share: fallback static demo values. "
+                "Run with --metrics reports/.../cluster_time_metrics.parquet for data-specific output.")
+    print("Wrote", plot_market_value(args.out_dir, sectors, note, total_rows=total_rows))
     return 0
 
 

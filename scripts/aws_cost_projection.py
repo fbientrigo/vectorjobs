@@ -20,6 +20,7 @@ Price sources (retrieved 2026-06):
 """
 from __future__ import annotations
 
+import argparse
 from pathlib import Path
 
 import matplotlib
@@ -29,7 +30,7 @@ import matplotlib.ticker as mtick
 import numpy as np
 import pandas as pd
 
-OUT_DIR = Path("presentations/estado_actual/figs")
+DEFAULT_OUT_DIR = Path("presentations/estado_actual/figs")
 
 # --- Data-growth assumptions ------------------------------------------------ #
 BASE_JOBS_PER_MONTH = 123_849          # current LinkedIn drop (Apr-2024)
@@ -81,18 +82,24 @@ def gpu_price(month: pd.Timestamp) -> float:
     return GPU_AFTER_HIKE
 
 
-def storage_series(growth: float) -> np.ndarray:
+def storage_series(growth: float, base_jobs_per_month: int, horizon_months: int) -> np.ndarray:
     """Cumulative stored TB over the horizon for a MoM ingestion growth rate."""
-    monthly_jobs = BASE_JOBS_PER_MONTH * (1 + growth) ** np.arange(HORIZON_MONTHS)
+    monthly_jobs = base_jobs_per_month * (1 + growth) ** np.arange(horizon_months)
     cumulative_jobs = np.cumsum(monthly_jobs)
     return cumulative_jobs * TOTAL_KB_PER_JOB / (1024 ** 3)  # KB -> TB
 
 
-def plot_storage_growth() -> Path:
-    months = np.arange(HORIZON_MONTHS)
+def plot_storage_growth(out_dir: Path, base_jobs_per_month: int, horizon_months: int) -> Path:
+    months = np.arange(horizon_months)
     fig, ax = plt.subplots(figsize=(10, 5.5))
     for label, growth in SCENARIOS.items():
-        ax.plot(months, storage_series(growth), marker="o", markersize=3, label=label)
+        ax.plot(
+            months,
+            storage_series(growth, base_jobs_per_month, horizon_months),
+            marker="o",
+            markersize=3,
+            label=label,
+        )
     ax.set_title("Crecimiento de almacenamiento acumulado (vectorjobs)")
     ax.set_xlabel("Meses desde hoy")
     ax.set_ylabel("Terabytes acumulados (TB)")
@@ -101,19 +108,19 @@ def plot_storage_growth() -> Path:
     foot = (f"~{TOTAL_KB_PER_JOB:.1f} KB/job (raw {KB_PER_JOB['raw_text']} + "
             f"emb {KB_PER_JOB['qwen_embedding']} + overhead "
             f"{KB_PER_JOB['silver_index_overhead']}); base "
-            f"{BASE_JOBS_PER_MONTH:,} jobs/mes")
+            f"{base_jobs_per_month:,} jobs/mes")
     fig.text(0.01, 0.01, foot, fontsize=7, color="gray")
     fig.tight_layout(rect=(0, 0.03, 1, 1))
-    path = OUT_DIR / "storage_growth_tb.png"
+    path = out_dir / "storage_growth_tb.png"
     fig.savefig(path, dpi=150)
     plt.close(fig)
     return path
 
 
-def plot_cost_projection() -> Path:
-    months = pd.date_range(PRICE_START, periods=HORIZON_MONTHS, freq="MS")
+def plot_cost_projection(out_dir: Path, base_jobs_per_month: int, horizon_months: int) -> Path:
+    months = pd.date_range(PRICE_START, periods=horizon_months, freq="MS")
     growth = SCENARIOS["Base (5%/mes)"]
-    monthly_jobs = BASE_JOBS_PER_MONTH * (1 + growth) ** np.arange(HORIZON_MONTHS)
+    monthly_jobs = base_jobs_per_month * (1 + growth) ** np.arange(horizon_months)
     cumulative_gb = np.cumsum(monthly_jobs) * TOTAL_KB_PER_JOB / (1024 ** 2)  # KB->GB
 
     s3_cost = np.array([s3_monthly_cost(gb) for gb in cumulative_gb])
@@ -148,18 +155,31 @@ def plot_cost_projection() -> Path:
             f"{JOBS_PER_GPU_HOUR:,} jobs/GPU-h; escenario base 5%/mes")
     fig.text(0.01, 0.01, foot, fontsize=7, color="gray")
     fig.tight_layout(rect=(0, 0.03, 1, 1))
-    path = OUT_DIR / "aws_cost_projection.png"
+    path = out_dir / "aws_cost_projection.png"
     fig.savefig(path, dpi=150)
     plt.close(fig)
     return path
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
+    parser.add_argument("--base-jobs-per-month", type=int, default=BASE_JOBS_PER_MONTH)
+    parser.add_argument("--horizon-months", type=int, default=HORIZON_MONTHS)
+    return parser.parse_args()
+
+
 def main() -> int:
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    print("Wrote", plot_storage_growth())
-    print("Wrote", plot_cost_projection())
-    final_tb = storage_series(SCENARIOS["Base (5%/mes)"])[-1]
-    print(f"Base scenario: ~{final_tb:.2f} TB acumulados tras {HORIZON_MONTHS} meses")
+    args = parse_args()
+    args.out_dir.mkdir(parents=True, exist_ok=True)
+    print("Wrote", plot_storage_growth(args.out_dir, args.base_jobs_per_month, args.horizon_months))
+    print("Wrote", plot_cost_projection(args.out_dir, args.base_jobs_per_month, args.horizon_months))
+    final_tb = storage_series(
+        SCENARIOS["Base (5%/mes)"],
+        args.base_jobs_per_month,
+        args.horizon_months,
+    )[-1]
+    print(f"Base scenario: ~{final_tb:.2f} TB acumulados tras {args.horizon_months} meses")
     return 0
 
 

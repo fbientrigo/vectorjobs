@@ -426,6 +426,7 @@ def temporal_audit_cmd(
     show_default=True,
     type=click.Choice(["listed_time", "original_listed_time", "expiry", "closed_time"]),
 )
+@click.option("--time-bin", default="M", show_default=True, type=click.Choice(["H", "D", "W", "M"], case_sensitive=False))
 @click.option(
     "--centroid-weighting",
     default="unweighted",
@@ -448,6 +449,7 @@ def temporal_demo_cmd(
     device: str,
     max_embedding_rows: int,
     time_column: str,
+    time_bin: str,
     centroid_weighting: str,
     log_level: str,
 ) -> None:
@@ -474,6 +476,7 @@ def temporal_demo_cmd(
         f"--device {device} "
         f"--max-embedding-rows {max_embedding_rows} "
         f"--time-column {time_column} "
+        f"--time-bin {time_bin} "
         f"--centroid-weighting {centroid_weighting}"
     )
     result = run_temporal_demo(
@@ -492,6 +495,7 @@ def temporal_demo_cmd(
         device=device,
         max_embedding_rows=max_embedding_rows,
         time_column=time_column,
+        time_bin=time_bin.upper(),
         centroid_weighting=centroid_weighting,
     )
     click.echo(
@@ -505,6 +509,7 @@ def temporal_demo_cmd(
                 "n_months": result.manifest["n_months"],
                 "representation": result.manifest["representation"],
                 "time_column": result.manifest["time_column"],
+                "time_bin": result.manifest["time_bin"],
                 "centroid_weighting": result.manifest["centroid_weighting"],
                 "salary_weighted_drift_path": result.manifest["salary_weighted_drift_path"],
                 "reliability_label": result.manifest["reliability_label"],
@@ -527,6 +532,7 @@ def temporal_demo_cmd(
 @click.option("--embedding-batch-size", default=8, show_default=True, type=int)
 @click.option("--max-rows", default=100000, show_default=True, type=int)
 @click.option("--random-state", default=42, show_default=True, type=int)
+@click.option("--time-column", default=None, type=str, help="Optional temporal column override.")
 @click.option("--log-level", default="INFO", show_default=True)
 def temporal_clusters_cmd(
     input_path: Path,
@@ -538,6 +544,7 @@ def temporal_clusters_cmd(
     embedding_batch_size: int,
     max_rows: int,
     random_state: int,
+    time_column: Optional[str],
     log_level: str,
 ) -> None:
     """Build fixed temporal cluster analytics over silver job postings."""
@@ -545,18 +552,21 @@ def temporal_clusters_cmd(
 
     from jobsrec.trends.temporal_clusters import run_temporal_clusters
 
-    command_used = (
-        "jobsrec temporal-clusters "
-        f"--input {input_path} "
-        f"--outdir {outdir} "
-        f"--bin {bin_size} "
-        f"--k {k} "
-        f"--embedding {embedding} "
-        f"--embedding-model {embedding_model} "
-        f"--embedding-batch-size {embedding_batch_size} "
-        f"--max-rows {max_rows} "
-        f"--random-state {random_state}"
-    )
+    command_parts = [
+        "jobsrec temporal-clusters",
+        f"--input {input_path}",
+        f"--outdir {outdir}",
+        f"--bin {bin_size}",
+        f"--k {k}",
+        f"--embedding {embedding}",
+        f"--embedding-model {embedding_model}",
+        f"--embedding-batch-size {embedding_batch_size}",
+        f"--max-rows {max_rows}",
+        f"--random-state {random_state}",
+    ]
+    if time_column:
+        command_parts.append(f"--time-column {time_column}")
+    command_used = " ".join(command_parts)
     result = run_temporal_clusters(
         input_path=input_path,
         outdir=outdir,
@@ -568,6 +578,7 @@ def temporal_clusters_cmd(
         command_used=command_used,
         embedding_model=embedding_model,
         embedding_batch_size=embedding_batch_size,
+        time_column=time_column,
     )
     click.echo(
         json.dumps(
@@ -648,6 +659,7 @@ def profile_silver_cmd(
 @click.option("--top-n", "top_n_skills", default=12, show_default=True, type=int)
 @click.option("--max-rows", default=100000, show_default=True, type=int)
 @click.option("--random-state", default=42, show_default=True, type=int)
+@click.option("--time-column", default=None, type=str, help="Optional temporal column override.")
 @click.option("--confidence-threshold", default=0.05, show_default=True, type=float)
 @click.option("--margin-threshold", default=0.01, show_default=True, type=float)
 @click.option("--log-level", default="INFO", show_default=True)
@@ -658,6 +670,7 @@ def skill_evolution_cmd(
     top_n_skills: int,
     max_rows: int,
     random_state: int,
+    time_column: Optional[str],
     confidence_threshold: float,
     margin_threshold: float,
     log_level: str,
@@ -667,17 +680,20 @@ def skill_evolution_cmd(
 
     from jobsrec.trends.skill_evolution import run_skill_evolution
 
-    command_used = (
-        "jobsrec skill-evolution "
-        f"--input {input_path} "
-        f"--outdir {outdir} "
-        f"--bin {bin_size} "
-        f"--top-n {top_n_skills} "
-        f"--max-rows {max_rows} "
-        f"--random-state {random_state} "
-        f"--confidence-threshold {confidence_threshold} "
-        f"--margin-threshold {margin_threshold}"
-    )
+    command_parts = [
+        "jobsrec skill-evolution",
+        f"--input {input_path}",
+        f"--outdir {outdir}",
+        f"--bin {bin_size}",
+        f"--top-n {top_n_skills}",
+        f"--max-rows {max_rows}",
+        f"--random-state {random_state}",
+        f"--confidence-threshold {confidence_threshold}",
+        f"--margin-threshold {margin_threshold}",
+    ]
+    if time_column:
+        command_parts.insert(-2, f"--time-column {time_column}")
+    command_used = " ".join(command_parts)
     result = run_skill_evolution(
         input_path=input_path,
         outdir=outdir,
@@ -685,6 +701,7 @@ def skill_evolution_cmd(
         top_n_skills=top_n_skills,
         max_rows=max_rows,
         random_state=random_state,
+        time_column=time_column,
         confidence_threshold=confidence_threshold,
         margin_threshold=margin_threshold,
         command_used=command_used,

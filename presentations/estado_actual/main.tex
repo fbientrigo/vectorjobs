@@ -65,7 +65,7 @@
     \begin{column}{0.5\textwidth}
       \textbf{Hecho}
       \begin{itemize}
-        \item Clusters fijos (k=12) con centroides mensuales.
+        \item Clusters fijos (k=12) con centroides diarios para el MVP.
         \item Reportes temporales (47 figuras).
         \item Smoke tests semánticos.
       \end{itemize}
@@ -88,8 +88,8 @@
         \item Cada job es un vector (TF-IDF/SVD o denso).
         \item Un \textbf{centroide} es el vector promedio de un cluster (un
               "sector" del mercado laboral).
-        \item Calculamos centroides \textbf{por mes} y medimos la
-              \textbf{deriva} (distancia coseno entre meses).
+        \item Calculamos centroides \textbf{por día} para el MVP y medimos la
+              \textbf{deriva} (distancia coseno entre periodos consecutivos).
         \item La deriva $=$ cuánto se mueve el lenguaje/contenido de un sector
               en el tiempo.
       \end{itemize}
@@ -174,7 +174,7 @@
     \begin{column}{0.5\textwidth}
       \centering
       \includegraphics[width=\linewidth]{salary_coverage_by_month.png}\\
-      \footnotesize Cobertura de salario por mes (solo $\sim$29\% de las filas).
+      \footnotesize Cobertura de salario por día (solo $\sim$29\% de las filas).
     \end{column}
     \begin{column}{0.5\textwidth}
       \centering

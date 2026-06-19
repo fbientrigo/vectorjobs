@@ -138,21 +138,23 @@ def _split_skills(value: object) -> list[str]:
     return [" ".join(part.lower().split()) for part in parts if part.strip()]
 
 
-def detect_temporal_cluster_schema(df: pd.DataFrame) -> dict[str, Any]:
+def detect_temporal_cluster_schema(df: pd.DataFrame, time_column: str | None = None) -> dict[str, Any]:
     """Detect useful columns without assuming one exact silver schema."""
     text_columns = [column for column in TEXT_CANDIDATES if column in df.columns]
-    time_column = _first_present(df.columns, TIME_CANDIDATES)
+    if time_column is not None and time_column not in df.columns:
+        raise ValueError(f"Requested time column not found: {time_column}")
+    detected_time_column = time_column or _first_present(df.columns, TIME_CANDIDATES)
     skill_column = _first_present(df.columns, SKILL_CANDIDATES)
     closure_column = _first_present(df.columns, CLOSURE_CANDIDATES)
     last_seen_column = _first_present(df.columns, LAST_SEEN_CANDIDATES)
     salary_columns = [column for column in SALARY_COLUMNS + ["currency", "pay_period"] if column in df.columns]
     if not text_columns:
         raise ValueError(f"No supported text columns found. Tried: {TEXT_CANDIDATES}.")
-    if time_column is None:
+    if detected_time_column is None:
         raise ValueError(f"No supported posting time column found. Tried: {TIME_CANDIDATES}.")
     return {
         "text_columns": text_columns,
-        "time_column": time_column,
+        "time_column": detected_time_column,
         "skill_column": skill_column,
         "closure_column": closure_column,
         "last_seen_column": last_seen_column,
@@ -658,6 +660,8 @@ def _write_cluster_share_timeseries(metrics: pd.DataFrame, path: Path, top_n: in
         ax.text(0.5, 0.5, "No temporal cluster metrics available", ha="center", va="center")
         ax.axis("off")
     else:
+        unique_bins = sorted(metrics["time_bin"].dropna().astype(str).unique())
+        bin_to_idx = {time_bin: i for i, time_bin in enumerate(unique_bins)}
         top_clusters = (
             metrics.groupby(["cluster_id", "cluster_label"])["n_jobs"]
             .sum()
@@ -667,10 +671,18 @@ def _write_cluster_share_timeseries(metrics: pd.DataFrame, path: Path, top_n: in
         )
         for _, row in top_clusters.iterrows():
             subset = metrics[metrics["cluster_id"] == row["cluster_id"]].sort_values("time_bin")
-            ax.plot(subset["time_bin"].astype(str), subset["share_jobs"], marker="o", label=row["cluster_label"])
+            x_values = subset["time_bin"].astype(str).map(bin_to_idx)
+            ax.plot(x_values, subset["share_jobs"], marker="o", label=row["cluster_label"])
         ax.set_title(f"Posting Share Timeseries for Top {len(top_clusters)} Fixed Clusters")
         ax.set_xlabel("Time bin")
         ax.set_ylabel("Share of postings")
+        if unique_bins:
+            step = max(1, math.ceil(len(unique_bins) / 12))
+            ticks = list(range(0, len(unique_bins), step))
+            if ticks[-1] != len(unique_bins) - 1:
+                ticks.append(len(unique_bins) - 1)
+            ax.set_xticks(ticks)
+            ax.set_xticklabels([unique_bins[i] for i in ticks])
         ax.tick_params(axis="x", rotation=45)
         ax.grid(True, alpha=0.25)
         ax.legend(loc="best", fontsize=8)
@@ -990,12 +1002,13 @@ def run_temporal_clusters(
     command_used: str | None = None,
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2",
     embedding_batch_size: int = 8,
+    time_column: str | None = None,
 ) -> TemporalClusterResult:
     """Run fixed temporal cluster analytics and write all report artifacts."""
     started_at = time.perf_counter()
     outdir.mkdir(parents=True, exist_ok=True)
     df_input = pd.read_parquet(input_path)
-    schema = detect_temporal_cluster_schema(df_input)
+    schema = detect_temporal_cluster_schema(df_input, time_column=time_column)
     selected = _select_rows(df_input, max_rows=max_rows, random_state=random_state)
     selected["_embedding_index"] = np.arange(len(selected), dtype=int)
     selected["_analysis_text"] = _join_text_columns(selected, schema["text_columns"])

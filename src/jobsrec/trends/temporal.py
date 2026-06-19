@@ -100,12 +100,27 @@ def parse_time_column(df: pd.DataFrame, time_column: str) -> pd.Series:
     return parsed
 
 
-def add_month_bucket(df: pd.DataFrame, time_column: str = "listed_time") -> pd.DataFrame:
-    """Return a copy with parsed listed time and YYYY-MM month bucket."""
+def _period_frequency(time_bin: str) -> str:
+    if time_bin.upper() == "H":
+        return "h"
+    return time_bin.upper()
+
+
+def add_month_bucket(
+    df: pd.DataFrame,
+    time_column: str = "listed_time",
+    time_bin: str = "M",
+) -> pd.DataFrame:
+    """Return a copy with parsed listed time and a period bucket.
+
+    The output column is still named ``month`` for compatibility with the
+    existing analytics code, but it may contain daily or hourly period labels.
+    """
     out = df.copy()
     out["_listed_time_parsed"] = parse_time_column(out, time_column)
-    out["month"] = out["_listed_time_parsed"].dt.to_period("M").astype("string")
+    out["month"] = out["_listed_time_parsed"].dt.to_period(_period_frequency(time_bin)).astype("string")
     out["_time_column"] = time_column
+    out["_time_bin"] = time_bin.upper()
     return out
 
 
@@ -408,6 +423,7 @@ def sample_jobs(
     sample_size: int,
     sampling_mode: str = "temporal-stride",
     time_column: str = "listed_time",
+    time_bin: str = "M",
 ) -> pd.DataFrame:
     """Sample rows for fast temporal analysis."""
     if sample_size <= 0:
@@ -422,7 +438,7 @@ def sample_jobs(
         n = min(sample_size, len(df))
         return add_month_bucket(df.sample(n=n, random_state=42), time_column=time_column).reset_index(drop=True)
 
-    temporal = add_month_bucket(df, time_column=time_column)
+    temporal = add_month_bucket(df, time_column=time_column, time_bin=time_bin)
     valid = temporal.dropna(subset=["_listed_time_parsed"]).sort_values("_listed_time_parsed")
     if valid.empty:
         return valid.reset_index(drop=True)
@@ -931,6 +947,14 @@ def _plot_bar(df: pd.DataFrame, x: str, y: str, path: Path, title: str, color: s
     ax.set_xlabel("")
     ax.set_ylabel(y.replace("_", " ").title())
     ax.tick_params(axis="x", rotation=45)
+    if len(df) > 14:
+        step = max(1, math.ceil(len(df) / 12))
+        ticks = list(range(0, len(df), step))
+        if ticks[-1] != len(df) - 1:
+            ticks.append(len(df) - 1)
+        labels = df[x].astype(str).tolist()
+        ax.set_xticks(ticks)
+        ax.set_xticklabels([labels[i] for i in ticks])
     fig.tight_layout()
     fig.savefig(path, dpi=140)
     plt.close(fig)
@@ -950,13 +974,15 @@ def _write_required_plots(
         figures_dir / "top_declining_skills.png",
     ]
     volume = sampled.groupby("month").size().rename("jobs").reset_index()
-    _plot_bar(volume, "month", "jobs", paths[0], "Job Volume by Month", "#2f6f73")
+    time_bin = str(sampled.get("_time_bin", pd.Series(["M"])).dropna().iloc[0]) if "_time_bin" in sampled else "M"
+    period_label = {"D": "Day", "H": "Hour", "W": "Week", "M": "Month"}.get(time_bin.upper(), "Period")
+    _plot_bar(volume, "month", "jobs", paths[0], f"Job Volume by {period_label}", "#2f6f73")
     _plot_bar(
         drift.dropna(subset=["centroid_drift"]),
         "month",
         "centroid_drift",
         paths[1],
-        "Centroid Drift by Month",
+        f"Centroid Drift by {period_label}",
         "#9b5de5",
     )
     rising = growth.sort_values("share_delta", ascending=False).head(15)
@@ -971,6 +997,7 @@ def _write_salary_weighted_plots(
     salary_drift: pd.DataFrame,
     salary_metadata: pd.DataFrame,
     figures_dir: Path,
+    period_label: str = "Period",
 ) -> list[Path]:
     figures_dir.mkdir(parents=True, exist_ok=True)
     paths: list[Path] = []
@@ -984,7 +1011,7 @@ def _write_salary_weighted_plots(
             "month",
             "centroid_drift",
             drift_plot,
-            "Salary-Weighted Centroid Drift by Month",
+            f"Salary-Weighted Centroid Drift by {period_label}",
             "#6a4c93",
         )
         paths.append(drift_plot)
@@ -995,7 +1022,7 @@ def _write_salary_weighted_plots(
             "month",
             "salary_coverage",
             coverage_plot,
-            "Salary Coverage by Month",
+            f"Salary Coverage by {period_label}",
             "#1982c4",
         )
         paths.append(coverage_plot)
@@ -1259,6 +1286,7 @@ def run_temporal_demo(
     sampling_mode: str = "temporal-stride",
     command_used: str | None = None,
     min_jobs_per_month: int = 1,
+    time_bin: str = "M",
     representation: str = "tfidf_svd",
     embedding_backend: str = "mock",
     embedding_model: str = "deterministic-mock",
@@ -1288,7 +1316,13 @@ def run_temporal_demo(
     parsed = parse_time_column(df, time_column)
     n_valid_time = int(parsed.notna().sum())
     parse_rate = float(n_valid_time / len(df)) if len(df) else 0.0
-    sampled = sample_jobs(df, sample_size=sample_size, sampling_mode=sampling_mode, time_column=time_column)
+    sampled = sample_jobs(
+        df,
+        sample_size=sample_size,
+        sampling_mode=sampling_mode,
+        time_column=time_column,
+        time_bin=time_bin,
+    )
     temporal = sampled.dropna(subset=["_listed_time_parsed"]).copy()
     temporal = temporal[temporal.groupby("month")["month"].transform("size") >= min_jobs_per_month]
 
@@ -1300,6 +1334,7 @@ def run_temporal_demo(
             sample_size=max_embedding_rows,
             sampling_mode=sampling_mode,
             time_column=time_column,
+            time_bin=time_bin,
         )
         temporal = temporal.dropna(subset=["_listed_time_parsed"]).copy()
 
@@ -1368,7 +1403,13 @@ def run_temporal_demo(
         salary_drift.to_parquet(salary_weighted_drift_path, index=False)
         salary_metadata.to_parquet(salary_weighted_metadata_path, index=False)
         salary_diagnostics.to_parquet(salary_weight_diagnostics_path, index=False)
-        salary_plot_paths = _write_salary_weighted_plots(salary_drift, salary_metadata, figures_dir)
+        period_label = {"D": "Day", "H": "Hour", "W": "Week", "M": "Month"}.get(time_bin.upper(), "Period")
+        salary_plot_paths = _write_salary_weighted_plots(
+            salary_drift,
+            salary_metadata,
+            figures_dir,
+            period_label=period_label,
+        )
         generated_paths.extend(
             [
                 salary_weighted_drift_path,
@@ -1411,6 +1452,7 @@ def run_temporal_demo(
         "sample_size": int(sample_size),
         "sampling_mode": sampling_mode,
         "time_column": time_column,
+        "time_bin": time_bin.upper(),
         "time_column_interpretation": TIME_COLUMN_INTERPRETATIONS.get(time_column, "temporal column"),
         "centroid_weighting": centroid_weighting,
         "min_jobs_per_month": int(min_jobs_per_month),

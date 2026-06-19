@@ -303,8 +303,12 @@ def _write_skill_evolution_plot(domain_df: pd.DataFrame, domain_label: str, path
         ax.grid(axis="y", linestyle="--", alpha=0.5, color="#cbd5e1")
         ax.grid(visible=False, axis="x")
         
-        ax.set_xticks(range(len(unique_bins)))
-        ax.set_xticklabels(unique_bins)
+        step = max(1, math.ceil(len(unique_bins) / 12))
+        ticks = list(range(0, len(unique_bins), step))
+        if ticks[-1] != len(unique_bins) - 1:
+            ticks.append(len(unique_bins) - 1)
+        ax.set_xticks(ticks)
+        ax.set_xticklabels([unique_bins[i] for i in ticks])
         ax.tick_params(axis="x", rotation=45, colors="#475569", labelsize=8)
         ax.tick_params(axis="y", colors="#475569", labelsize=8)
         ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1), borderaxespad=0, frameon=False, fontsize=8)
@@ -396,6 +400,7 @@ def run_skill_evolution(
     top_n_skills: int = 12,
     max_rows: int | None = 100000,
     random_state: int = 42,
+    time_column: str | None = None,
     confidence_threshold: float = 0.05,
     margin_threshold: float = 0.01,
     command_used: str | None = None,
@@ -407,7 +412,7 @@ def run_skill_evolution(
     if "job_id" not in df_input.columns:
         raise ValueError("Input data must contain a 'job_id' column.")
 
-    schema = detect_temporal_cluster_schema(df_input)
+    schema = detect_temporal_cluster_schema(df_input, time_column=time_column)
     selected = _select_rows(df_input, max_rows=max_rows, random_state=random_state)
     selected["_analysis_text"] = _join_text_columns(selected, schema["text_columns"])
     selected["_posted_at"] = _parse_datetime(selected[schema["time_column"]])

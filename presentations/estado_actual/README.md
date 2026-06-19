@@ -4,7 +4,49 @@ Deck Beamer (español) sobre el estado del proyecto: centroides y su deriva
 temporal, "market cap" del mercado laboral (volumen × salario), uso de mejores
 modelos, y el frente nuevo de almacenamiento + costos AWS.
 
-## Flujo: generar figuras en tu PC → subir a Overleaf
+## Flujo recomendado: datos propios → carpeta Overleaf
+
+Desde la raiz del repo, apunta el comando a una carpeta con el layout del dataset
+LinkedIn/Kaggle (`postings.csv`, `jobs/`, `companies/`, `mappings/`):
+
+```bash
+python scripts/build_presentation_assets.py \
+  --raw-data-dir data/raw/linkedin-job-postings \
+  --overleaf-dir dist/estado_actual_overleaf \
+  --clean
+```
+
+Eso hace todo el pipeline reproducible:
+
+- construye `jobs.parquet` con `jobsrec build-silver`;
+- regenera centroides, clusters temporales, salary coverage y skill evolution;
+- usa resolución diaria por defecto (`--time-bin D`) para el MVP de ventana corta;
+- recalcula `market_value_by_sector.png` desde `cluster_time_metrics.parquet`;
+- recalcula costos/almacenamiento usando el volumen mensual de tus datos;
+- deja una carpeta autocontenida en `dist/estado_actual_overleaf/`.
+
+Sube `dist/estado_actual_overleaf/` a Overleaf. No necesitas ejecutar Python en
+Overleaf: la carpeta ya incluye `main.tex`, `figs/*.png` y
+`asset_manifest.json` con la procedencia de cada figura.
+
+### Opciones utiles
+
+```bash
+# Demo offline con el sample commiteado
+python scripts/build_presentation_assets.py --raw-data-dir data/sample --clean
+
+# Reutilizar un silver Parquet ya construido
+python scripts/build_presentation_assets.py \
+  --skip-silver \
+  --silver-path data/silver/jobs.parquet \
+  --overleaf-dir dist/estado_actual_overleaf \
+  --clean
+
+# Limitar filas para una corrida rapida
+python scripts/build_presentation_assets.py --raw-data-dir data/raw/linkedin-job-postings --max-rows 20000 --sample-size 10000
+```
+
+## Flujo manual: generar figuras en esta carpeta
 
 1. **Genera todas las figuras** (copia las reutilizadas de `reports/` y crea las
    nuevas con matplotlib):
