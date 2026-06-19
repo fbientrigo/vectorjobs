@@ -63,6 +63,8 @@ scratch/
 *.ipynb
 !notebooks/
 !notebooks/cluster_skill_timelines_colab.ipynb
+!notebooks/apolo_colab_gpu_baseline_rag_finetune.ipynb
 
 # Graphify local configs
 graphify-out/.graphify_python
+/graphify-out/cache
