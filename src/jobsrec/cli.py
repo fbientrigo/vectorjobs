@@ -10,6 +10,8 @@ profile-silver    Profile a silver Parquet and write a JSON data report.
 temporal-demo     Build a fast temporal trend demo report and plots.
 temporal-clusters Build fixed temporal cluster analytics report and plots.
 skill-evolution   Build offline skill-share evolution analytics report and plots.
+populares-validate Validate populares-scraper Parquet outputs.
+populares-build-gold Build draft gold Parquet outputs for apolo-rag.
 """
 
 from __future__ import annotations
@@ -717,6 +719,99 @@ def skill_evolution_cmd(
             indent=2,
         )
     )
+
+
+# ---------------------------------------------------------------------------
+# populares-validate
+# ---------------------------------------------------------------------------
+
+@main.command("populares-validate")
+@click.option(
+    "--documents",
+    "documents_path",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Path to documents.parquet from populares-scraper.",
+)
+@click.option(
+    "--chunks",
+    "chunks_path",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Path to chunks.parquet from populares-scraper.",
+)
+@click.option(
+    "--manifest",
+    "manifest_path",
+    default=None,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Optional embedding_manifest.json contract file.",
+)
+def populares_validate_cmd(
+    documents_path: Path,
+    chunks_path: Path,
+    manifest_path: Optional[Path],
+) -> None:
+    """Validate populares-scraper inputs and print a JSON summary."""
+    from jobsrec.ingest.populares import summarize_populares_inputs
+
+    summary = summarize_populares_inputs(
+        documents_path=documents_path,
+        chunks_path=chunks_path,
+        manifest_path=manifest_path,
+    )
+    click.echo(json.dumps(summary, indent=2, sort_keys=True))
+
+
+# ---------------------------------------------------------------------------
+# populares-build-gold
+# ---------------------------------------------------------------------------
+
+@main.command("populares-build-gold")
+@click.option(
+    "--documents",
+    "documents_path",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Path to documents.parquet from populares-scraper.",
+)
+@click.option(
+    "--chunks",
+    "chunks_path",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Path to chunks.parquet from populares-scraper.",
+)
+@click.option(
+    "--manifest",
+    "manifest_path",
+    default=None,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Optional embedding_manifest.json contract file.",
+)
+@click.option(
+    "--out",
+    "out_dir",
+    required=True,
+    type=click.Path(file_okay=False, path_type=Path),
+    help="Destination gold dataset directory.",
+)
+def populares_build_gold_cmd(
+    documents_path: Path,
+    chunks_path: Path,
+    manifest_path: Optional[Path],
+    out_dir: Path,
+) -> None:
+    """Build draft gold dataset files for apolo-rag."""
+    from jobsrec.ingest.populares import build_populares_gold
+
+    manifest = build_populares_gold(
+        documents_path=documents_path,
+        chunks_path=chunks_path,
+        manifest_path=manifest_path,
+        out_dir=out_dir,
+    )
+    click.echo(json.dumps(manifest, indent=2, sort_keys=True))
 
 
 # ---------------------------------------------------------------------------

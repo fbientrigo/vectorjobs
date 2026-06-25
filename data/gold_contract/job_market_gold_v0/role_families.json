@@ -1,0 +1,119 @@
+{
+  "schema_version": "0.0.1",
+  "role_families": [
+    {
+      "role_family_id": "civil_engineering",
+      "label": "Civil Engineering",
+      "representative_titles": [
+        "Structural Engineer",
+        "Staff Engineer (Geotechnical, Geological or Mining)"
+      ],
+      "skills": [
+        "Engineering",
+        "Information Technology"
+      ],
+      "locations": [
+        "San Mateo, CA",
+        "Tucson, AZ"
+      ],
+      "posting_count": 2,
+      "confidence": "low"
+    },
+    {
+      "role_family_id": "construction_project_management",
+      "label": "Construction & Project Management",
+      "representative_titles": [
+        "Service / Construction Technician",
+        "Construction Project Manager",
+        "Architect/Project Manager",
+        "Commercial Construction Project Managers/Superintendents",
+        "Project Manager"
+      ],
+      "skills": [
+        "Project Management",
+        "Information Technology",
+        "Management",
+        "Manufacturing"
+      ],
+      "locations": [
+        "West Bridgewater, MA",
+        "Raleigh-Durham-Chapel Hill Area",
+        "Las Cruces, NM",
+        "Land O' Lakes, FL",
+        "Tacoma, WA",
+        "United States",
+        "Oxnard, CA",
+        "Austin, Texas Metropolitan Area",
+        "Metro Detroit, MI",
+        "McKinney, TX"
+      ],
+      "posting_count": 11,
+      "confidence": "low"
+    },
+    {
+      "role_family_id": "transportation_planning",
+      "label": "Transportation Planning",
+      "representative_titles": [
+        "Traffic Coordinator/Scheduler",
+        "Print Traffic"
+      ],
+      "skills": [
+        "Design",
+        "Art/Creative",
+        "Information Technology"
+      ],
+      "locations": [
+        "Canton, OH",
+        "Brooklyn, NY"
+      ],
+      "posting_count": 2,
+      "confidence": "low"
+    },
+    {
+      "role_family_id": "water_environmental_engineering",
+      "label": "Water & Environmental Engineering",
+      "representative_titles": [],
+      "skills": [],
+      "locations": [],
+      "posting_count": 0,
+      "confidence": "low"
+    },
+    {
+      "role_family_id": "data_analytics_engineering",
+      "label": "Data & Analytics Engineering",
+      "representative_titles": [
+        "Board Certified Behavior Analyst",
+        "FP&A Analyst",
+        "Intern- Business Analytics",
+        "Data Architect",
+        "Technical Product and IT Manager for Data Center Dedicated Server Leasing"
+      ],
+      "skills": [
+        "Information Technology",
+        "Finance",
+        "Sales",
+        "Engineering",
+        "Health Care Provider",
+        "Product Management",
+        "Marketing",
+        "Accounting/Auditing",
+        "Business Development",
+        "Research"
+      ],
+      "locations": [
+        "McDonough, GA",
+        "Dallas, TX",
+        "Greensboro--Winston-Salem--High Point Area",
+        "San Francisco, CA",
+        "United States",
+        "Cleveland, OH",
+        "Indiana, PA",
+        "Austin, TX",
+        "Huntsville-Decatur-Albertville Area",
+        "Kalamazoo, MI"
+      ],
+      "posting_count": 20,
+      "confidence": "low"
+    }
+  ]
+}
