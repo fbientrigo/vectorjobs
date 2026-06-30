@@ -196,7 +196,7 @@ class TfidfBackend:
 
 def fit_and_save(
     documents: list[str],
-    job_ids: list[int],
+    job_ids: list[str],
     job_card_texts: list[str],
     output_dir: Path | str,
     input_path: Path | str = "",

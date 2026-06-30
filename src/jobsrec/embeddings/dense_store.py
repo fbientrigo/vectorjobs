@@ -30,7 +30,7 @@ class DenseArtifacts:
 def build_and_save_dense(
     backend: Any,  # Expected EmbeddingBackend, but avoiding circular/heavy typing if unneeded
     documents: list[str],
-    job_ids: list[int],
+    job_ids: list[str],
     output_dir: Path | str,
     input_path: Path | str = "",
     batch_size: int = 32,

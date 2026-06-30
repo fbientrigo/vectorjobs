@@ -15,6 +15,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TypeAlias
 
 import numpy as np
 import pandas as pd
@@ -24,6 +25,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 from jobsrec.embeddings.tfidf import TfidfBackend
 
 logger = logging.getLogger(__name__)
+JobId: TypeAlias = str | int
 
 
 # ---------------------------------------------------------------------------
@@ -34,7 +36,7 @@ logger = logging.getLogger(__name__)
 class ScoredJob:
     """A single recommendation result."""
 
-    job_id: int
+    job_id: JobId
     score: float
     rank: int
 
@@ -43,7 +45,7 @@ class ScoredJob:
 class RetrievalResult:
     """Top-k recommendations for a single query job."""
 
-    query_job_id: int
+    query_job_id: JobId
     results: list[ScoredJob]
 
 
@@ -67,7 +69,7 @@ class TfidfRetriever:
     def __init__(
         self,
         backend: TfidfBackend,
-        job_ids: list[int],
+        job_ids: list[JobId],
     ) -> None:
         if len(job_ids) != backend.matrix.shape[0]:
             raise ValueError(
@@ -75,13 +77,13 @@ class TfidfRetriever:
                 f"matrix rows ({backend.matrix.shape[0]})"
             )
         self._backend = backend
-        self._job_ids = np.asarray(job_ids, dtype=np.int64)
+        self._job_ids = np.asarray([str(job_id) for job_id in job_ids], dtype=object)
 
     # ------------------------------------------------------------------
 
     def recommend(
         self,
-        query_job_id: int,
+        query_job_id: JobId,
         top_k: int = 10,
     ) -> RetrievalResult:
         """
@@ -131,7 +133,7 @@ class TfidfRetriever:
 
         results = [
             ScoredJob(
-                job_id=int(self._job_ids[idx]),
+                job_id=self._job_ids[idx],
                 score=float(sims[idx]),
                 rank=rank + 1,
             )
@@ -174,9 +176,9 @@ class TfidfRetriever:
     # Private helpers
     # ------------------------------------------------------------------
 
-    def _find_index(self, job_id: int) -> int:
+    def _find_index(self, job_id: JobId) -> int:
         """Return the matrix row index for *job_id*, or raise ``KeyError``."""
-        matches = np.where(self._job_ids == job_id)[0]
+        matches = np.where(self._job_ids == str(job_id))[0]
         if len(matches) == 0:
             raise KeyError(
                 f"job_id={job_id!r} not found in the corpus "

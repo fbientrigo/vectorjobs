@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from jobsrec.recommend.retrieval import RetrievalResult, ScoredJob
+from jobsrec.recommend.retrieval import JobId, RetrievalResult, ScoredJob
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ class DenseRetriever:
     def __init__(
         self,
         embeddings: np.ndarray,
-        job_ids: list[int],
+        job_ids: list[JobId],
     ) -> None:
         if len(job_ids) != embeddings.shape[0]:
             raise ValueError(
@@ -33,11 +33,11 @@ class DenseRetriever:
                 f"embeddings rows ({embeddings.shape[0]})"
             )
         self._embeddings = embeddings
-        self._job_ids = np.asarray(job_ids, dtype=np.int64)
+        self._job_ids = np.asarray([str(job_id) for job_id in job_ids], dtype=object)
 
     def recommend(
         self,
-        query_job_id: int,
+        query_job_id: JobId,
         top_k: int = 10,
     ) -> RetrievalResult:
         """
@@ -68,7 +68,7 @@ class DenseRetriever:
 
         results = [
             ScoredJob(
-                job_id=int(self._job_ids[idx]),
+                job_id=self._job_ids[idx],
                 score=float(sims[idx]),
                 rank=rank + 1,
             )
@@ -95,8 +95,8 @@ class DenseRetriever:
 
         return cls(embeddings=embeddings, job_ids=job_ids)
 
-    def _find_index(self, job_id: int) -> int:
-        matches = np.where(self._job_ids == job_id)[0]
+    def _find_index(self, job_id: JobId) -> int:
+        matches = np.where(self._job_ids == str(job_id))[0]
         if len(matches) == 0:
             raise KeyError(
                 f"job_id={job_id!r} not found in the corpus "
