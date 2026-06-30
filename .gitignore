@@ -68,3 +68,5 @@ scratch/
 # Graphify local configs
 graphify-out/.graphify_python
 /graphify-out/cache
+/data
+/.serena
