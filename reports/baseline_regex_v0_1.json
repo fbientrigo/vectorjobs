@@ -1,0 +1,467 @@
+{
+  "audit_version": "baseline_regex_v0_1",
+  "total_jobs": 35915,
+  "total_candidates": 653233,
+  "mean_candidates_per_job": 18.19,
+  "median_candidates_per_job": 18.0,
+  "jobs_with_candidates": 35915,
+  "jobs_with_regex_skills": 10346,
+  "jobs_with_regex_skills_pct": 28.8,
+  "company_parse_errors": 0,
+  "silver_schema_version": "0.2.0",
+  "extraction_schema_version": "extraction_v0.1",
+  "skill_dict_version": "v0.1",
+  "skill_counts": {
+    "Excel": 5404,
+    "Microsoft Office": 3697,
+    "Inglés": 2540,
+    "SAP": 2408,
+    "ERP": 2128,
+    "CRM": 1245,
+    "Power BI": 1071,
+    "Word": 726,
+    "SQL": 687,
+    "Python": 421,
+    "AutoCAD": 352,
+    "PowerPoint": 311,
+    "AWS": 244,
+    "Salesforce": 196,
+    "Java": 184,
+    "Google Workspace": 136,
+    "Tableau": 136,
+    "GCP": 130,
+    "Git": 100,
+    "JavaScript": 85
+  },
+  "skill_counts_by_section": {
+    "responsabilidades": 873,
+    "conocimientos": 5135,
+    "": 3323,
+    "contrato": 584,
+    "requisitos": 7170,
+    "beneficios": 476,
+    "modalidad": 285,
+    "funciones": 2857,
+    "horario": 391,
+    "habilidades": 1107
+  },
+  "candidate_counts_by_source": {
+    "paragraph": 313816,
+    "li": 303502,
+    "title": 35915
+  },
+  "jobs_with_skills_by_industry": {
+    "": {
+      "total_jobs": 11583,
+      "jobs_with_skills": 3409,
+      "pct": 29.4
+    },
+    "AFJP": {
+      "total_jobs": 22,
+      "jobs_with_skills": 5,
+      "pct": 22.7
+    },
+    "Administración": {
+      "total_jobs": 331,
+      "jobs_with_skills": 150,
+      "pct": 45.3
+    },
+    "Agro-Industrial": {
+      "total_jobs": 49,
+      "jobs_with_skills": 14,
+      "pct": 28.6
+    },
+    "Agropecuaria": {
+      "total_jobs": 29,
+      "jobs_with_skills": 11,
+      "pct": 37.9
+    },
+    "Alimenticia": {
+      "total_jobs": 316,
+      "jobs_with_skills": 39,
+      "pct": 12.3
+    },
+    "Arquitectura": {
+      "total_jobs": 20,
+      "jobs_with_skills": 8,
+      "pct": 40.0
+    },
+    "Artesanal": {
+      "total_jobs": 3,
+      "jobs_with_skills": 0,
+      "pct": 0.0
+    },
+    "Automotriz": {
+      "total_jobs": 396,
+      "jobs_with_skills": 172,
+      "pct": 43.4
+    },
+    "Aérea": {
+      "total_jobs": 5,
+      "jobs_with_skills": 2,
+      "pct": 40.0
+    },
+    "Banca / Financiera": {
+      "total_jobs": 1024,
+      "jobs_with_skills": 271,
+      "pct": 26.5
+    },
+    "Biotecnología": {
+      "total_jobs": 3,
+      "jobs_with_skills": 0,
+      "pct": 0.0
+    },
+    "Call Center": {
+      "total_jobs": 60,
+      "jobs_with_skills": 4,
+      "pct": 6.7
+    },
+    "Comercio": {
+      "total_jobs": 1483,
+      "jobs_with_skills": 293,
+      "pct": 19.8
+    },
+    "Comercio Exterior": {
+      "total_jobs": 20,
+      "jobs_with_skills": 10,
+      "pct": 50.0
+    },
+    "Comunicaciones": {
+      "total_jobs": 27,
+      "jobs_with_skills": 6,
+      "pct": 22.2
+    },
+    "Construcción": {
+      "total_jobs": 956,
+      "jobs_with_skills": 140,
+      "pct": 14.6
+    },
+    "Consultora de Recursos Humanos": {
+      "total_jobs": 996,
+      "jobs_with_skills": 397,
+      "pct": 39.9
+    },
+    "Consultoría": {
+      "total_jobs": 2824,
+      "jobs_with_skills": 1206,
+      "pct": 42.7
+    },
+    "Consumo masivo": {
+      "total_jobs": 520,
+      "jobs_with_skills": 172,
+      "pct": 33.1
+    },
+    "Defensa": {
+      "total_jobs": 1,
+      "jobs_with_skills": 0,
+      "pct": 0.0
+    },
+    "Diseño": {
+      "total_jobs": 31,
+      "jobs_with_skills": 15,
+      "pct": 48.4
+    },
+    "Editorial": {
+      "total_jobs": 2,
+      "jobs_with_skills": 0,
+      "pct": 0.0
+    },
+    "Educación": {
+      "total_jobs": 1298,
+      "jobs_with_skills": 611,
+      "pct": 47.1
+    },
+    "Energía": {
+      "total_jobs": 93,
+      "jobs_with_skills": 37,
+      "pct": 39.8
+    },
+    "Entretenimiento": {
+      "total_jobs": 26,
+      "jobs_with_skills": 5,
+      "pct": 19.2
+    },
+    "Farmacéutica": {
+      "total_jobs": 428,
+      "jobs_with_skills": 30,
+      "pct": 7.0
+    },
+    "Ferroviaria": {
+      "total_jobs": 3,
+      "jobs_with_skills": 2,
+      "pct": 66.7
+    },
+    "Financiera": {
+      "total_jobs": 64,
+      "jobs_with_skills": 33,
+      "pct": 51.6
+    },
+    "Forestal": {
+      "total_jobs": 8,
+      "jobs_with_skills": 4,
+      "pct": 50.0
+    },
+    "Ganadería": {
+      "total_jobs": 1,
+      "jobs_with_skills": 0,
+      "pct": 0.0
+    },
+    "Gastronomía": {
+      "total_jobs": 697,
+      "jobs_with_skills": 61,
+      "pct": 8.8
+    },
+    "Gobierno": {
+      "total_jobs": 113,
+      "jobs_with_skills": 29,
+      "pct": 25.7
+    },
+    "Higiene y Perfumería": {
+      "total_jobs": 14,
+      "jobs_with_skills": 3,
+      "pct": 21.4
+    },
+    "Holding": {
+      "total_jobs": 24,
+      "jobs_with_skills": 1,
+      "pct": 4.2
+    },
+    "Hotelería": {
+      "total_jobs": 171,
+      "jobs_with_skills": 32,
+      "pct": 18.7
+    },
+    "Imprenta": {
+      "total_jobs": 18,
+      "jobs_with_skills": 5,
+      "pct": 27.8
+    },
+    "Industrial": {
+      "total_jobs": 266,
+      "jobs_with_skills": 66,
+      "pct": 24.8
+    },
+    "Información e Investigación": {
+      "total_jobs": 1,
+      "jobs_with_skills": 0,
+      "pct": 0.0
+    },
+    "Informática / Tecnología": {
+      "total_jobs": 235,
+      "jobs_with_skills": 137,
+      "pct": 58.3
+    },
+    "Inmobiliaria": {
+      "total_jobs": 252,
+      "jobs_with_skills": 86,
+      "pct": 34.1
+    },
+    "Internet": {
+      "total_jobs": 10,
+      "jobs_with_skills": 7,
+      "pct": 70.0
+    },
+    "Jurídica": {
+      "total_jobs": 36,
+      "jobs_with_skills": 13,
+      "pct": 36.1
+    },
+    "Laboratorio": {
+      "total_jobs": 23,
+      "jobs_with_skills": 4,
+      "pct": 17.4
+    },
+    "Manufactura": {
+      "total_jobs": 240,
+      "jobs_with_skills": 47,
+      "pct": 19.6
+    },
+    "Medio Ambiente": {
+      "total_jobs": 31,
+      "jobs_with_skills": 9,
+      "pct": 29.0
+    },
+    "Metalmecánica": {
+      "total_jobs": 75,
+      "jobs_with_skills": 11,
+      "pct": 14.7
+    },
+    "Minería / Petróleo / Gas": {
+      "total_jobs": 304,
+      "jobs_with_skills": 99,
+      "pct": 32.6
+    },
+    "ONGs": {
+      "total_jobs": 326,
+      "jobs_with_skills": 16,
+      "pct": 4.9
+    },
+    "Optica": {
+      "total_jobs": 15,
+      "jobs_with_skills": 4,
+      "pct": 26.7
+    },
+    "Otra": {
+      "total_jobs": 1247,
+      "jobs_with_skills": 448,
+      "pct": 35.9
+    },
+    "Papelera": {
+      "total_jobs": 49,
+      "jobs_with_skills": 17,
+      "pct": 34.7
+    },
+    "Pesca": {
+      "total_jobs": 37,
+      "jobs_with_skills": 13,
+      "pct": 35.1
+    },
+    "Petroquímica": {
+      "total_jobs": 8,
+      "jobs_with_skills": 3,
+      "pct": 37.5
+    },
+    "Plásticos": {
+      "total_jobs": 2,
+      "jobs_with_skills": 0,
+      "pct": 0.0
+    },
+    "Publicidad / Marketing / RRPP": {
+      "total_jobs": 88,
+      "jobs_with_skills": 17,
+      "pct": 19.3
+    },
+    "Química": {
+      "total_jobs": 66,
+      "jobs_with_skills": 15,
+      "pct": 22.7
+    },
+    "Retail": {
+      "total_jobs": 1454,
+      "jobs_with_skills": 174,
+      "pct": 12.0
+    },
+    "Salud": {
+      "total_jobs": 863,
+      "jobs_with_skills": 168,
+      "pct": 19.5
+    },
+    "Sector público": {
+      "total_jobs": 6,
+      "jobs_with_skills": 0,
+      "pct": 0.0
+    },
+    "Seguridad": {
+      "total_jobs": 103,
+      "jobs_with_skills": 17,
+      "pct": 16.5
+    },
+    "Seguros": {
+      "total_jobs": 147,
+      "jobs_with_skills": 43,
+      "pct": 29.3
+    },
+    "Servicios": {
+      "total_jobs": 4222,
+      "jobs_with_skills": 1388,
+      "pct": 32.9
+    },
+    "Siderurgia": {
+      "total_jobs": 3,
+      "jobs_with_skills": 0,
+      "pct": 0.0
+    },
+    "Sin especificar": {
+      "total_jobs": 7,
+      "jobs_with_skills": 1,
+      "pct": 14.3
+    },
+    "Supermercado / Hipermercado": {
+      "total_jobs": 849,
+      "jobs_with_skills": 100,
+      "pct": 11.8
+    },
+    "Tabacalera": {
+      "total_jobs": 3,
+      "jobs_with_skills": 1,
+      "pct": 33.3
+    },
+    "Telecomunicaciones": {
+      "total_jobs": 677,
+      "jobs_with_skills": 128,
+      "pct": 18.9
+    },
+    "Textil": {
+      "total_jobs": 152,
+      "jobs_with_skills": 17,
+      "pct": 11.2
+    },
+    "Transportadora": {
+      "total_jobs": 16,
+      "jobs_with_skills": 2,
+      "pct": 12.5
+    },
+    "Transporte": {
+      "total_jobs": 407,
+      "jobs_with_skills": 96,
+      "pct": 23.6
+    },
+    "Turismo": {
+      "total_jobs": 36,
+      "jobs_with_skills": 22,
+      "pct": 61.1
+    }
+  },
+  "top_50_candidate_texts": {
+    "requisitos:": 8567,
+    "requisitos": 3444,
+    "principales funciones:": 2603,
+    "funciones:": 2300,
+    "beneficios:": 1603,
+    "funciones principales:": 1426,
+    "nuestro candidato ideal:": 1334,
+    "responsabilidades": 1200,
+    "resumen del puesto": 1144,
+    "ofrecemos:": 1135,
+    "beneficios": 1061,
+    "enseñanza media completa.": 1055,
+    "condiciones laborales:": 1018,
+    "discapacidad: esta vacante es apta para personas con discapacidad.": 900,
+    "principales funciones": 851,
+    "condiciones:": 825,
+    "el proceso de selección se realiza a través de aira - plataforma de reclutamiento diseñado para mejorar tu experiencia de postulación.": 784,
+    "enseñanza media completa": 760,
+    "para postular solo necesitas:": 742,
+    "¿qué ofrecemos?": 676,
+    "3. ingresar a aira y contestar las preguntas y/o pruebas solicitadas": 667,
+    "se ofrece:": 618,
+    "...(más información al postular)": 591,
+    "funciones principales": 566,
+    "1. postular a la oferta": 562,
+    "2. revisar tu mail": 561,
+    "beneficios: porque promovemos tu calidad de vida dentro y fuera del trabajo, tenemos muchos beneficios para ti. te dejamos algunos:": 514,
+    "luego, si vemos que tu perfil se ajusta a lo que estamos buscando, te contactaremos por mail (a través de aira) para seguir a la etapa presencial.": 507,
+    "objetivo del cargo": 496,
+    "¿qué buscamos?": 476,
+    "¡y muchos más!": 475,
+    "- gympass: ejercita tu cuerpo y mente a solo un click. precio preferencial para rutinas de ejercicios y una gran variedad de apps de bienestar.": 469,
+    "- descuento en compras: 10% de descuento sin tope en más de 22.000 productos*": 468,
+    "- telemedicina: tu salud y la de tu familia es prioridad para nosotros. servicio de salud online para videoconsultas gratuitas de medicina general, nutrición y psicología.": 464,
+    "somos people go, empresa al servicio de las personas, siempre comprometidos con la diversidad & inclusión en sus infinitas formas, personalidades, culturas, etnias, origen, identidad, religión, edad, gustos y capacidades.": 460,
+    "principales responsabilidades": 446,
+    "¿de qué se trata este cargo?": 446,
+    "estabilidad laboral.": 431,
+    "nuestros clientes y colaboradores cambiaron y obviamente queremos seguir ofreciéndoles lo mejor. súmate a esta gran misión y tendrás la oportunidad de impactar a millones de familias.": 424,
+    "tus desafíos serán:": 415,
+    "ofrecemos": 404,
+    "¿ganas de reescribir las reglas y desafiar los límites? en walmart chile nos transformamos día a día con pasión y creatividad para brindar la mejor experiencia omnicanal y generar un impacto real en las familias de chille.": 394,
+    "¡pero eso no es todo! para lograr la experiencia de compra de excelencia que buscamos, contamos también con nuestras plantas productivas y centros de distribución.": 394,
+    "¡te esperamos!": 383,
+    "objetivo del cargo:": 382,
+    "*puedes acceder a este beneficio al contar con contrato indefinido.": 380,
+    "somos el retail minorista más grande del mundo. en chile nos puedes encontrar a través de nuestras plataformas digitales lider app y lider.cl, y nuestros formatos lider, express de lider, super bodega acuenta y central mayorista.": 377,
+    "horario:": 376,
+    "entre otros.": 372,
+    "¿qué te ofrecemos?": 367
+  }
+}

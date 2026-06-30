@@ -1,191 +1,98 @@
-# Data Contract — Milestone 1.5
+# Data Contract
 
-This document is the authoritative schema reference for every file produced or
-consumed by the `jobsrec` pipeline.
+This is the current contract for the `jobsrec` pipeline.
 
-> **Milestone history**
-> - Milestone 0: initial schema draft.
-> - Milestone 1: build-silver, build-tfidf, profile-silver, recommend pipeline.
-> - Milestone 1.5: expanded optional columns, salary join, richer profiling.
+## Bronze SQLite
 
----
+Input is the official scraper database:
 
-## 1. Input files (raw / Kaggle)
+```bash
+python -m jobsrec.cli build-silver --input-db data/bronze/jobs.db --output-dir data/silver
+```
 
-### 1.1 `postings.csv`
+Required tables:
 
-#### Required columns
+| Table | Required columns |
+| --- | --- |
+| `jobs` | `id`, `title`, `company`, `location`, `description`, `status` |
+| `job_observations` | `job_id`, `crawl_id`, `seen_at` |
+| `crawl_runs` | `id`, `started_at` |
+
+`jobs.id` and `job_observations.job_id` are text IDs. Do not cast them to integers.
+
+## Silver Parquet
+
+Schema version: **0.2.0**
+
+Output is a single file: `data/silver/jobs.parquet`.
+
+Required columns:
 
 | Column | Type | Notes |
-|--------|------|-------|
-| `job_id` | int64 | Unique job identifier |
-| `title` | str | Job title |
-| `description` | str | Full job description text |
+| --- | --- | --- |
+| `job_id` | string | From `jobs.id` — always string, never cast to int |
+| `title` | string | Trimmed |
+| `company_name` | string | From `company['denominacion']` (falls back to `nombre`, `name`) |
+| `company_confidential` | boolean/null | From `company['confidencial']` |
+| `company_raw` | string | Original `company` field text |
+| `company_city` | string | From `company['ciudad']`; `""` when absent |
+| `company_region` | string | From `company['provincia']`; `""` when absent |
+| `company_industry` | string | From `company['industria']`; `""` when absent |
+| `company_parse_error` | bool | True if `ast.literal_eval` failed on `company` |
+| `location` | string/null | Nullable; current official DB has all nulls |
+| `description_html` | string | Original scraper HTML |
+| `description_text` | string | HTML stripped to readable text |
+| `status` | string | Scraper status, including deleted rows |
+| `first_seen_at` | string/null | Minimum observation `seen_at` |
+| `last_seen_at` | string/null | Maximum observation `seen_at` |
+| `times_seen` | int | Observation row count |
+| `crawl_count` | int | Distinct crawl count |
+| `skills_text` | string | Always `""` until bronze has a skills table |
+| `job_card_text` | string | Deterministic retrieval text |
 
-Validation rule: `ValueError` is raised if any required column is absent.
+Rows with both blank title and blank description are dropped. Deleted rows are kept when they still have useful title or description content.
 
-#### Optional columns (preserved when present)
+**Note on company field:** The scraper stores `company` as a Python `repr()` dict string, parsed with `ast.literal_eval`. Non-confidential companies use `denominacion` as the name key.
 
-All columns below are carried into the silver dataset unchanged when they
-exist in `postings.csv`.  Missing optional columns are **silently skipped**
-(no back-filling with empty strings at the silver layer).
+## `job_card_text`
 
-| Column | Type | Category | Notes |
-|--------|------|----------|-------|
-| `listed_time` | float / int | temporal | Unix timestamp in ms |
-| `original_listed_time` | float / int | temporal | Unix timestamp in ms |
-| `expiry` | float / int | temporal | Unix timestamp in ms |
-| `closed_time` | float / int | temporal | Unix timestamp in ms |
-| `formatted_work_type` | str | job metadata | e.g. "Full-time" |
-| `formatted_experience_level` | str | job metadata | e.g. "Mid-Senior level" |
-| `work_type` | str | job metadata | e.g. "FULL_TIME" |
-| `location` | str | job metadata | e.g. "San Francisco, CA" |
-| `remote_allowed` | str / int | job metadata | 1 = remote, 0 = on-site |
-| `skills_desc` | str | job metadata | Free-text skills description |
-| `sponsored` | str / int | job metadata | 1 = sponsored listing |
-| `normalized_salary` | float | compensation | Normalised annual salary |
-| `application_url` | str | application | URL for external application |
-| `application_type` | str | application | e.g. "OffSite" |
-| `views` | int | engagement | Total posting view count |
-| `applies` | int | engagement | Total application count |
-| `company_id` | int | company | FK → companies/companies.csv |
-| `zip_code` | str | geo | US ZIP code |
-| `fips` | str | geo | FIPS county code |
+Sections are emitted in order, omitting blank sections:
 
-> **Temporal column preservation policy**: temporal columns are kept in
-> their raw numeric form (Unix-ms integer / float).  They are **not** cast
-> to `datetime` at the silver layer.  The `profile-silver` command reports
-> parse-success rates for `listed_time`, `expiry`, and `closed_time`.
-
-### 1.2 `jobs/job_skills.csv`
-
-| Column | Type | Required | Notes |
-|--------|------|----------|-------|
-| `job_id` | int64 | ✅ | Foreign key → `postings.job_id` |
-| `skill_abr` | str | ✅ | Abbreviated skill code |
-
-### 1.3 `mappings/skills.csv`
-
-| Column | Type | Required | Notes |
-|--------|------|----------|-------|
-| `skill_abr` | str | ✅ | Primary key |
-| `skill_name` | str | ✅ | Human-readable skill label |
-
-### 1.4 `jobs/salaries.csv` (optional)
-
-The salary join is attempted whenever this file exists.  The pipeline
-continues without error when the file is absent.
-
-| Column | Type | Required | Notes |
-|--------|------|----------|-------|
-| `salary_id` | int | optional | Row identifier (not used) |
-| `job_id` | int64 | ✅ | FK → `postings.job_id` |
-| `min_salary` | float | optional | Minimum salary |
-| `max_salary` | float | optional | Maximum salary |
-| `med_salary` | float | optional | Median salary |
-| `pay_period` | str | optional | e.g. "YEARLY", "HOURLY" |
-| `currency` | str | optional | e.g. "USD" |
-| `compensation_type` | str | optional | e.g. "BASE_SALARY" |
-
-**Aggregation rule** (multiple rows per `job_id`):
-- Numeric fields (`min_salary`, `max_salary`, `med_salary`): **max** of
-  non-null values.
-- String fields (`pay_period`, `currency`, `compensation_type`): **first
-  non-null, non-empty** value.
-
-This ensures exactly one salary row per job after aggregation, so the
-left-join with `postings` never introduces duplicate job rows.
-
----
-
-## 2. Silver dataset — `data/silver/jobs.parquet`
-
-Produced by `python -m jobsrec.cli build-silver`. Single Parquet file,
-not partitioned.
-
-### 2.1 Required columns
-
-| Column | Type | Nullable | Notes |
-|--------|------|----------|-------|
-| `job_id` | int64 | ❌ | Unique per row |
-| `title` | str | ❌ | |
-| `description` | str | ❌ | |
-| `skills_text` | str | ✅ | Comma-joined skill names; `""` if none |
-| `job_card_text` | str | ❌ | Deterministic concatenation — see §3 |
-
-### 2.2 Optional columns (present when source data has them)
-
-All optional postings columns from §1.1 may appear, plus the salary columns
-from §1.4.  Their presence is recorded in `manifest.json` (see §5).
-
-> **Jobs without skills are preserved**: `skills_text = ""` for jobs with
-> no matching rows in `job_skills.csv`.  Such jobs are counted by
-> `profile-silver` under `n_jobs_without_skills`.
-
----
-
-## 3. `job_card_text` format
-
-Sections are always emitted in this exact order; missing optional fields are
-omitted entirely (not replaced with a placeholder string).
-
-```
+```text
 Title: {title}
-Experience: {formatted_experience_level}   ← omitted if blank
-Work type: {formatted_work_type}           ← omitted if blank
-Location: {location}                       ← omitted if blank
-Skills: {skills_text}                      ← omitted if blank
-Description: {description}
+Location: {location}
+Skills: {skills_text}
+Description: {description_text}
 ```
 
-Newline separator: `\n` (Unix).  Leading / trailing whitespace stripped per field.
+## Manifest
 
----
+`data/silver/manifest.json` records:
 
-## 4. Gold artifacts — `data/gold/`
+- `bronze_format: sqlite`
+- `silver_schema_version`: e.g. `"0.2.0"`
+- input/output row counts
+- source table counts
+- exact silver columns
+- `skills_source: none` until the scraper provides skills
 
-| File | Format | Notes |
-|------|--------|-------|
-| `tfidf_vectorizer.joblib` | joblib | Fitted `TfidfVectorizer` |
-| `tfidf_matrix.npz` | scipy sparse | Shape `(n_jobs, vocab)` |
-| `job_index.parquet` | Parquet | `job_id`, `job_card_text` ordered by matrix row |
-| `manifest.json` | JSON | See §5 |
+## Extraction Candidates
 
----
+Output: `data/silver/job_extraction_candidates.parquet`
+Schema version: **extraction_v0.1**
 
-## 5. Manifest schema
+One row per extracted text unit (title, paragraph, or `<li>` item) per job.
 
-Every pipeline stage writes a `manifest.json` alongside its outputs.
+| Column | Type | Notes |
+| --- | --- | --- |
+| `job_id` | string | FK → silver `jobs.parquet` |
+| `candidate_index` | int32 | 0-based index within job |
+| `candidate_text` | string | Extracted and cleaned text |
+| `candidate_source` | string | `"title"`, `"paragraph"`, or `"li"` |
+| `section_name` | string | Detected Spanish section anchor or `""` |
+| `skills_regex_raw` | string | JSON-encoded `list[str]` of raw matched strings |
+| `skills_normalized` | string | JSON-encoded `list[str]` of canonical skill names |
 
-### `build-silver` manifest
+`skills_regex_raw` and `skills_normalized` are always valid JSON arrays (use `json.loads()` to decode). Skill dictionary version is recorded in `extraction_manifest.json`.
 
-```json
-{
-  "stage": "build-silver",
-  "created_at": "2025-01-01T00:00:00+00:00",
-  "input_rows": 123456,
-  "output_rows": 118000,
-  "input_path": "data",
-  "output_path": "data/silver/jobs.parquet",
-  "config": {},
-  "preserved_optional_columns": [
-    "listed_time", "original_listed_time", "expiry", "closed_time",
-    "formatted_work_type", "formatted_experience_level", "work_type",
-    "location", "remote_allowed", "skills_desc", "sponsored",
-    "normalized_salary", "application_url", "application_type",
-    "views", "applies", "company_id", "zip_code", "fips"
-  ],
-  "joined_optional_tables": ["jobs/salaries.csv"],
-  "salary_columns_added": [
-    "min_salary", "max_salary", "med_salary", "pay_period", "currency",
-    "compensation_type"
-  ]
-}
-```
-
----
-
-## 6. Deprecation / versioning
-
-- Breaking schema changes increment the `version` field in `manifest.json`.
-- Additive changes (new nullable columns) are backwards compatible.
+Companion: `data/silver/extraction_manifest.json` — records schema version, run timestamp, counts, top skills, and skill dict version.
