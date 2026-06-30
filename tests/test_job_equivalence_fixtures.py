@@ -5,8 +5,11 @@ from apolo_eval.runner import run
 from apolo_eval.backends import MockEmbeddingBackend
 
 
+FIXTURES = Path(__file__).parent / "fixtures" / "eval"
+
+
 def test_pair_fixtures_load_expected_difficulties() -> None:
-    pairs = load_pairs("data/eval/synthetic_job_pairs.jsonl")
+    pairs = load_pairs(FIXTURES / "synthetic_job_pairs.jsonl")
 
     assert len(pairs) == 5
     assert {pair.difficulty for pair in pairs} >= {
@@ -20,7 +23,7 @@ def test_pair_fixtures_load_expected_difficulties() -> None:
 
 
 def test_triplet_fixtures_load_expected_fields() -> None:
-    triplets = load_triplets("data/eval/synthetic_job_triplets.jsonl")
+    triplets = load_triplets(FIXTURES / "synthetic_job_triplets.jsonl")
 
     assert len(triplets) == 5
     assert all(item.anchor and item.positive and item.negative for item in triplets)
@@ -30,7 +33,7 @@ def test_runner_creates_report(tmp_path: Path) -> None:
     out = tmp_path / "job_understanding_mock.md"
 
     result = run(
-        "data/eval/synthetic_job_triplets.jsonl",
+        FIXTURES / "synthetic_job_triplets.jsonl",
         MockEmbeddingBackend(),
         out,
     )

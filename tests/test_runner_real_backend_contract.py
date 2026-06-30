@@ -6,6 +6,9 @@ import numpy as np
 from apolo_eval.runner import _backend_from_args, run
 
 
+FIXTURES = Path(__file__).parent / "fixtures" / "eval"
+
+
 class ContractBackend:
     name = "sentence-transformer"
     model_name = "fake-contract-model"
@@ -30,7 +33,7 @@ def test_runner_report_includes_real_backend_metadata(tmp_path: Path) -> None:
     out = tmp_path / "report.md"
 
     result = run(
-        "data/eval/synthetic_job_triplets.jsonl",
+        FIXTURES / "synthetic_job_triplets.jsonl",
         ContractBackend(),
         out,
     )

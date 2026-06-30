@@ -32,7 +32,7 @@ CORPUS = [
     "Title: Backend Engineer\nSkills: Go, gRPC\nDescription: Build microservices.",
     "Title: Data Scientist\nSkills: Python, R, Statistics\nDescription: Analyse data.",
 ]
-JOB_IDS = [101, 102, 103, 104, 105]
+JOB_IDS = ["101", "102", "103", "104", "105"]
 
 
 @pytest.fixture(scope="module")
@@ -119,8 +119,8 @@ class TestSelfMatchExclusion:
 
     def test_results_never_contain_query(self, retriever: TfidfRetriever) -> None:
         """Redundant but explicit assertion for the key business rule."""
-        result = retriever.recommend(query_job_id=101, top_k=100)
-        assert 101 not in {r.job_id for r in result.results}
+        result = retriever.recommend(query_job_id="101", top_k=100)
+        assert "101" not in {r.job_id for r in result.results}
 
 
 # ---------------------------------------------------------------------------
@@ -129,35 +129,35 @@ class TestSelfMatchExclusion:
 
 class TestRetrievalRanking:
     def test_top_k_is_respected(self, retriever: TfidfRetriever) -> None:
-        result = retriever.recommend(query_job_id=101, top_k=3)
+        result = retriever.recommend(query_job_id="101", top_k=3)
         assert len(result.results) <= 3
 
     def test_top_1_returns_one_result(self, retriever: TfidfRetriever) -> None:
-        result = retriever.recommend(query_job_id=101, top_k=1)
+        result = retriever.recommend(query_job_id="101", top_k=1)
         assert len(result.results) == 1
 
     def test_results_sorted_descending_by_score(
         self, retriever: TfidfRetriever
     ) -> None:
-        result = retriever.recommend(query_job_id=101, top_k=4)
+        result = retriever.recommend(query_job_id="101", top_k=4)
         scores = [r.score for r in result.results]
         assert scores == sorted(scores, reverse=True)
 
     def test_ranks_are_sequential_from_one(self, retriever: TfidfRetriever) -> None:
-        result = retriever.recommend(query_job_id=101, top_k=4)
+        result = retriever.recommend(query_job_id="101", top_k=4)
         ranks = [r.rank for r in result.results]
         assert ranks == list(range(1, len(ranks) + 1))
 
     def test_scores_in_unit_interval(self, retriever: TfidfRetriever) -> None:
-        result = retriever.recommend(query_job_id=101, top_k=10)
+        result = retriever.recommend(query_job_id="101", top_k=10)
         for scored_job in result.results:
             assert 0.0 <= scored_job.score <= 1.0 + 1e-9, (
                 f"Score {scored_job.score} out of [0, 1] range"
             )
 
     def test_query_job_id_in_result(self, retriever: TfidfRetriever) -> None:
-        result = retriever.recommend(query_job_id=102, top_k=5)
-        assert result.query_job_id == 102
+        result = retriever.recommend(query_job_id="102", top_k=5)
+        assert result.query_job_id == "102"
 
 
 # ---------------------------------------------------------------------------
@@ -167,7 +167,7 @@ class TestRetrievalRanking:
 class TestRetrievalEdgeCases:
     def test_unknown_job_id_raises_key_error(self, retriever: TfidfRetriever) -> None:
         with pytest.raises(KeyError):
-            retriever.recommend(query_job_id=999_999)
+            retriever.recommend(query_job_id="999_999")
 
     def test_corpus_of_two_jobs_no_self_match(self) -> None:
         """Minimal corpus: 2 docs, self-match must still be excluded."""
@@ -177,20 +177,20 @@ class TestRetrievalEdgeCases:
         ]
         backend = TfidfBackend(max_features=100, ngram_range=(1, 1), min_df=1)
         backend.fit_transform(tiny_corpus)
-        retriever = TfidfRetriever(backend=backend, job_ids=[1, 2])
+        retriever = TfidfRetriever(backend=backend, job_ids=["1", "2"])
 
-        result = retriever.recommend(query_job_id=1, top_k=10)
-        assert 1 not in {r.job_id for r in result.results}
+        result = retriever.recommend(query_job_id="1", top_k=10)
+        assert "1" not in {r.job_id for r in result.results}
         assert len(result.results) <= 1  # only 1 other doc
 
     def test_mismatched_job_ids_length_raises(
         self, fitted_backend: TfidfBackend
     ) -> None:
         with pytest.raises(ValueError, match="job_ids length"):
-            TfidfRetriever(backend=fitted_backend, job_ids=[1, 2])  # too short
+            TfidfRetriever(backend=fitted_backend, job_ids=["1", "2"])  # too short
 
     def test_return_type_is_retrieval_result(self, retriever: TfidfRetriever) -> None:
-        result = retriever.recommend(query_job_id=101, top_k=3)
+        result = retriever.recommend(query_job_id="101", top_k=3)
         assert isinstance(result, RetrievalResult)
         for item in result.results:
             assert isinstance(item, ScoredJob)
