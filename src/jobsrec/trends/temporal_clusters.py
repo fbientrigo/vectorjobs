@@ -27,7 +27,15 @@ from jobsrec.trends.temporal import compute_annual_salary
 
 TEXT_CANDIDATES = ["job_card_text", "description", "title"]
 SKILL_CANDIDATES = ["skills_text", "skills_desc"]
-TIME_CANDIDATES = ["posted_at", "posting_date", "created_at", "listed_time", "original_listed_time"]
+TIME_CANDIDATES = [
+    "first_seen_at",
+    "last_seen_at",
+    "posted_at",
+    "posting_date",
+    "created_at",
+    "listed_time",
+    "original_listed_time",
+]
 CLOSURE_CANDIDATES = ["closed_at", "expired_at", "taken_at", "closed_time", "expiry"]
 LAST_SEEN_CANDIDATES = ["last_seen"]
 SALARY_COLUMNS = ["normalized_salary", "med_salary", "min_salary", "max_salary"]

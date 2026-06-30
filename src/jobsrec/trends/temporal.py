@@ -23,8 +23,17 @@ from sklearn.preprocessing import normalize
 
 TEXT_COLUMN = "job_card_text"
 SKILL_COLUMN = "skills_text"
-TEMPORAL_COLUMNS = ["listed_time", "original_listed_time", "expiry", "closed_time"]
+TEMPORAL_COLUMNS = [
+    "first_seen_at",
+    "last_seen_at",
+    "listed_time",
+    "original_listed_time",
+    "expiry",
+    "closed_time",
+]
 TIME_COLUMN_INTERPRETATIONS = {
+    "first_seen_at": "first scraper observation time",
+    "last_seen_at": "last scraper observation time",
     "listed_time": "canonical posting-listing time",
     "original_listed_time": "wider but sparse original listing time",
     "expiry": "expiration lifecycle time, not posting-demand coverage",
