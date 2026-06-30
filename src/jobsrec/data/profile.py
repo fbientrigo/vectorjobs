@@ -133,6 +133,8 @@ class SilverProfile:
 # ---------------------------------------------------------------------------
 
 _DATETIME_CANDIDATES: tuple[str, ...] = (
+    "first_seen_at",
+    "last_seen_at",
     "listed_time",
     "expiry",
     "closed_time",
@@ -179,7 +181,8 @@ def profile_silver(df: pd.DataFrame) -> SilverProfile:
     ----------
     df:
         DataFrame loaded from a silver ``jobs.parquet`` file.  Must contain
-        at least the columns ``job_id``, ``title``, ``description``, and
+        at least ``job_id``, ``title``, ``skills_text``, and either
+        ``description_text`` or legacy ``description``. Additional columns are examined if present.
         ``skills_text``.  Additional columns are examined if present.
 
     Returns
@@ -201,8 +204,9 @@ def profile_silver(df: pd.DataFrame) -> SilverProfile:
     n_missing_titles = int(
         df["title"].fillna("").astype(str).str.strip().eq("").sum()
     )
+    description_col = "description_text" if "description_text" in df.columns else "description"
     n_missing_descriptions = int(
-        df["description"].fillna("").astype(str).str.strip().eq("").sum()
+        df[description_col].fillna("").astype(str).str.strip().eq("").sum()
     )
     n_jobs_without_skills = int(
         df["skills_text"].fillna("").astype(str).str.strip().eq("").sum()
@@ -280,12 +284,14 @@ def profile_silver(df: pd.DataFrame) -> SilverProfile:
 # Internal helpers
 # ---------------------------------------------------------------------------
 
-_SILVER_REQUIRED = ("job_id", "title", "description", "skills_text")
+_SILVER_REQUIRED = ("job_id", "title", "skills_text")
 
 
 def _validate_required_columns(df: pd.DataFrame) -> None:
     present = set(df.columns)
     missing = sorted(set(_SILVER_REQUIRED) - present)
+    if "description_text" not in present and "description" not in present:
+        missing.append("description_text")
     if missing:
         raise ValueError(
             f"DataFrame is missing required silver columns: {missing}. "

@@ -1,9 +1,4 @@
-"""
-Column-level schema contracts for every CSV / Parquet consumed by jobsrec.
-
-Validation is intentionally lightweight (no Pydantic / pandera dependency)
-so the package runs in constrained Colab environments without heavy extras.
-"""
+"""Column-level schema contracts for jobsrec datasets."""
 
 from __future__ import annotations
 
@@ -13,79 +8,53 @@ from typing import Sequence
 import pandas as pd
 
 
-# ---------------------------------------------------------------------------
-# Column contracts
-# ---------------------------------------------------------------------------
+BRONZE_REQUIRED_TABLES: tuple[str, ...] = (
+    "jobs",
+    "job_observations",
+    "crawl_runs",
+)
 
-#: Required columns for postings.csv
-POSTINGS_REQUIRED: tuple[str, ...] = ("job_id", "title", "description")
-
-#: Optional columns carried through to the silver dataset.
-#: All are preserved as-is when present in postings.csv.
-#: Temporal columns (listed_time, original_listed_time, expiry, closed_time)
-#: are kept in their raw numeric form (Unix-ms integer) without casting.
-POSTINGS_OPTIONAL: tuple[str, ...] = (
-    # --- temporal ---
-    "listed_time",
-    "original_listed_time",
-    "expiry",
-    "closed_time",
-    # --- job metadata ---
-    "formatted_work_type",
-    "formatted_experience_level",
-    "work_type",
+BRONZE_JOBS_REQUIRED: tuple[str, ...] = (
+    "id",
+    "title",
+    "company",
     "location",
-    "remote_allowed",
-    "skills_desc",
-    "sponsored",
-    # --- compensation (from postings; may be superseded by salaries join) ---
-    "normalized_salary",
-    # --- application ---
-    "application_url",
-    "application_type",
-    "views",
-    "applies",
-    # --- company ---
-    "company_id",
-    # --- geo ---
-    "zip_code",
-    "fips",
+    "description",
+    "status",
 )
 
-#: Required columns for jobs/job_skills.csv
-JOB_SKILLS_REQUIRED: tuple[str, ...] = ("job_id", "skill_abr")
-
-#: Required columns for mappings/skills.csv
-SKILLS_REQUIRED: tuple[str, ...] = ("skill_abr", "skill_name")
-
-#: Required columns for jobs/salaries.csv
-SALARIES_REQUIRED: tuple[str, ...] = ("job_id",)
-
-#: Salary columns brought in from jobs/salaries.csv (all optional).
-#: If multiple rows per job_id exist they are aggregated (first non-null wins
-#: for string fields; numeric fields take the max of non-null values).
-SALARIES_OPTIONAL: tuple[str, ...] = (
-    "min_salary",
-    "max_salary",
-    "med_salary",
-    "pay_period",
-    "currency",
-    "compensation_type",
+BRONZE_OBSERVATIONS_REQUIRED: tuple[str, ...] = (
+    "job_id",
+    "crawl_id",
+    "seen_at",
 )
 
-#: Required columns in the silver Parquet output
+BRONZE_CRAWL_RUNS_REQUIRED: tuple[str, ...] = ("id", "started_at")
+
+SILVER_SCHEMA_VERSION = "0.2.0"
+
 SILVER_REQUIRED: tuple[str, ...] = (
     "job_id",
     "title",
-    "description",
+    "company_name",
+    "company_confidential",
+    "company_raw",
+    "company_city",
+    "company_region",
+    "company_industry",
+    "company_parse_error",
+    "location",
+    "description_html",
+    "description_text",
+    "status",
+    "first_seen_at",
+    "last_seen_at",
+    "times_seen",
+    "crawl_count",
     "skills_text",
     "job_card_text",
 )
 
-
-# ---------------------------------------------------------------------------
-# Validation helper
-# ---------------------------------------------------------------------------
 
 @dataclass(frozen=True)
 class ValidationResult:
@@ -110,23 +79,7 @@ def validate_columns(
     required: Sequence[str],
     source: str = "",
 ) -> ValidationResult:
-    """
-    Check that *df* contains every column listed in *required*.
-
-    Parameters
-    ----------
-    df:
-        DataFrame to inspect.
-    required:
-        Column names that must be present.
-    source:
-        Human-readable label used in error messages (e.g. ``"postings.csv"``).
-
-    Returns
-    -------
-    ValidationResult
-        Always returns a result object; callers decide whether to raise.
-    """
+    """Check that *df* contains every column listed in *required*."""
     present = set(df.columns)
     required_set = set(required)
     missing = sorted(required_set - present)
@@ -144,23 +97,7 @@ def assert_columns(
     required: Sequence[str],
     source: str = "",
 ) -> None:
-    """
-    Like :func:`validate_columns` but raises ``ValueError`` on failure.
-
-    Parameters
-    ----------
-    df:
-        DataFrame to inspect.
-    required:
-        Column names that must be present.
-    source:
-        Human-readable label used in the error message.
-
-    Raises
-    ------
-    ValueError
-        If any required column is missing.
-    """
+    """Like :func:`validate_columns` but raises ``ValueError`` on failure."""
     result = validate_columns(df, required, source=source)
     if not result.valid:
         raise ValueError(
