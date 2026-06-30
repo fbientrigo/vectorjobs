@@ -3,7 +3,7 @@ Click CLI entry-points for the jobsrec pipeline.
 
 Commands
 --------
-build-silver      Load raw CSVs → build silver Parquet.
+build-silver      Load bronze SQLite → build silver Parquet.
 build-tfidf       Fit TF-IDF vectoriser on silver data → write gold artefacts.
 recommend         Load gold artefacts → return top-k JSON recommendations.
 profile-silver    Profile a silver Parquet and write a JSON data report.
@@ -47,7 +47,7 @@ def _load_config(config_path: Optional[str]) -> dict:
     path = Path(config_path)
     if not path.exists():
         raise click.BadParameter(f"Config file not found: {path}")
-    with path.open() as fh:
+    with path.open(encoding="utf-8") as fh:
         return yaml.safe_load(fh) or {}
 
 
@@ -67,10 +67,10 @@ def main() -> None:
 
 @main.command("build-silver")
 @click.option(
-    "--input-dir",
+    "--input-db",
     required=True,
-    type=click.Path(exists=True, file_okay=False, path_type=Path),
-    help="Directory containing postings.csv, jobs/, and mappings/.",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Path to bronze SQLite jobs.db.",
 )
 @click.option(
     "--output-dir",
@@ -87,19 +87,19 @@ def main() -> None:
 )
 @click.option("--log-level", default="INFO", show_default=True)
 def build_silver_cmd(
-    input_dir: Path,
+    input_db: Path,
     output_dir: Path,
     config_path: Optional[str],
     log_level: str,
 ) -> None:
-    """Load raw CSVs, build job_card_text, write silver Parquet."""
+    """Load bronze SQLite, build job_card_text, write silver Parquet."""
     _setup_logging(log_level)
     config = _load_config(config_path)
 
     from jobsrec.data.load import build_silver
 
     result = build_silver(
-        input_dir=input_dir,
+        input_db=input_db,
         output_dir=output_dir,
         config=config,
     )
@@ -162,7 +162,7 @@ def build_tfidf_cmd(
         )
 
     documents: list[str] = df["job_card_text"].tolist()
-    job_ids: list[int] = df["job_id"].tolist()
+    job_ids: list[str] = df["job_id"].astype(str).tolist()
 
     result = fit_and_save(
         documents=documents,
@@ -193,7 +193,7 @@ def build_tfidf_cmd(
 @click.option(
     "--job-id",
     required=True,
-    type=int,
+    type=str,
     help="job_id of the query posting.",
 )
 @click.option(
@@ -212,7 +212,7 @@ def build_tfidf_cmd(
 )
 @click.option("--log-level", default="WARNING", show_default=True)
 def recommend_cmd(
-    job_id: int,
+    job_id: str,
     top_k: int,
     gold_dir: Path,
     log_level: str,
@@ -272,7 +272,7 @@ def build_embeddings_cmd(
         df = df.head(sample_size)
 
     documents = df["job_card_text"].tolist()
-    job_ids = df["job_id"].tolist()
+    job_ids = df["job_id"].astype(str).tolist()
 
     if backend == "qwen3":
         from jobsrec.embeddings.qwen3 import Qwen3EmbeddingBackend
@@ -311,13 +311,13 @@ def build_embeddings_cmd(
 # ---------------------------------------------------------------------------
 
 @main.command("recommend-dense")
-@click.option("--job-id", required=True, type=int)
+@click.option("--job-id", required=True, type=str)
 @click.option("--top-k", default=5, show_default=True, type=int)
 @click.option("--embeddings-dir", required=True, type=click.Path(exists=True, file_okay=False, path_type=Path))
 @click.option("--silver-path", type=click.Path(exists=True, dir_okay=False, path_type=Path), help="Optional silver path.")
 @click.option("--log-level", default="WARNING", show_default=True)
 def recommend_dense_cmd(
-    job_id: int,
+    job_id: str,
     top_k: int,
     embeddings_dir: Path,
     silver_path: Optional[Path],
@@ -352,7 +352,7 @@ def recommend_dense_cmd(
     "--time-column",
     default="listed_time",
     show_default=True,
-    type=click.Choice(["listed_time", "original_listed_time", "expiry", "closed_time"]),
+    type=click.Choice(["first_seen_at", "last_seen_at", "listed_time", "original_listed_time", "expiry", "closed_time"]),
 )
 @click.option("--log-level", default="INFO", show_default=True)
 def temporal_audit_cmd(
@@ -426,7 +426,7 @@ def temporal_audit_cmd(
     "--time-column",
     default="listed_time",
     show_default=True,
-    type=click.Choice(["listed_time", "original_listed_time", "expiry", "closed_time"]),
+    type=click.Choice(["first_seen_at", "last_seen_at", "listed_time", "original_listed_time", "expiry", "closed_time"]),
 )
 @click.option("--time-bin", default="M", show_default=True, type=click.Choice(["H", "D", "W", "M"], case_sensitive=False))
 @click.option(
@@ -812,6 +812,175 @@ def populares_build_gold_cmd(
         out_dir=out_dir,
     )
     click.echo(json.dumps(manifest, indent=2, sort_keys=True))
+
+
+# ---------------------------------------------------------------------------
+# extract-candidates
+# ---------------------------------------------------------------------------
+
+@main.command("extract-candidates")
+@click.option(
+    "--silver-path",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Path to silver jobs.parquet.",
+)
+@click.option(
+    "--output-dir",
+    required=True,
+    type=click.Path(file_okay=False, path_type=Path),
+    help="Destination for job_extraction_candidates.parquet and extraction_manifest.json.",
+)
+@click.option(
+    "--sample-size",
+    default=None,
+    type=int,
+    help="Optional row limit for testing.",
+)
+@click.option("--log-level", default="INFO", show_default=True)
+def extract_candidates_cmd(
+    silver_path: Path,
+    output_dir: Path,
+    sample_size: Optional[int],
+    log_level: str,
+) -> None:
+    """Build job_extraction_candidates.parquet from silver data."""
+    _setup_logging(log_level)
+
+    import pandas as pd
+
+    from jobsrec.extract.candidates import (
+        build_extraction_candidates,
+        build_extraction_report,
+        write_extraction_manifest,
+    )
+
+    silver_df = pd.read_parquet(silver_path)
+    if sample_size is not None:
+        silver_df = silver_df.head(sample_size)
+
+    parse_error_count = int(silver_df["company_parse_error"].sum()) if "company_parse_error" in silver_df.columns else 0
+
+    logger.info("Building extraction candidates for %d jobs ...", len(silver_df))
+    candidates_df = build_extraction_candidates(silver_df)
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / "job_extraction_candidates.parquet"
+    candidates_df.to_parquet(output_path, index=False)
+    logger.info("Wrote candidates: %s (%d rows)", output_path, len(candidates_df))
+
+    report = build_extraction_report(candidates_df, silver_df, parse_error_count)
+    manifest_path = write_extraction_manifest(
+        output_dir=output_dir,
+        report=report,
+        silver_path=str(silver_path),
+        output_path=str(output_path),
+    )
+
+    summary = {
+        "output_path": str(output_path),
+        "manifest_path": str(manifest_path),
+        "jobs_processed": report["jobs_processed"],
+        "candidate_rows": report["candidate_rows"],
+        "jobs_with_candidates_pct": report["jobs_with_candidates_pct"],
+        "jobs_with_skills_pct": report["jobs_with_skills_pct"],
+        "company_parse_errors": report["company_parse_errors"],
+        "skill_dict_version": report["skill_dict_version"],
+        "extraction_schema_version": report["extraction_schema_version"],
+        "top_skills": [{"skill": s, "count": c} for s, c in report["top_skills"]],
+    }
+    click.echo(json.dumps(summary, indent=2, ensure_ascii=False))
+
+
+# ---------------------------------------------------------------------------
+# audit-extraction-baseline
+# ---------------------------------------------------------------------------
+
+@main.command("audit-extraction-baseline")
+@click.option(
+    "--silver-path",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Path to silver jobs.parquet.",
+)
+@click.option(
+    "--candidates-path",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Path to job_extraction_candidates.parquet.",
+)
+@click.option(
+    "--output-dir",
+    required=True,
+    type=click.Path(file_okay=False, path_type=Path),
+    help="Destination directory for audit reports.",
+)
+@click.option(
+    "--sample-size",
+    default=300,
+    show_default=True,
+    type=int,
+    help="Number of rows in stratified review sample.",
+)
+@click.option("--log-level", default="INFO", show_default=True)
+def audit_extraction_baseline_cmd(
+    silver_path: Path,
+    candidates_path: Path,
+    output_dir: Path,
+    sample_size: int,
+    log_level: str,
+) -> None:
+    """Audit deterministic extraction baseline and write quality reports."""
+    _setup_logging(log_level)
+
+    import pandas as pd
+
+    from jobsrec.extract.audit import (
+        AUDIT_VERSION,
+        build_stratified_sample,
+        compute_audit_metrics,
+        write_json_report,
+        write_markdown_report,
+    )
+
+    logger.info("Loading silver: %s", silver_path)
+    silver = pd.read_parquet(silver_path)
+    logger.info("Loading candidates: %s", candidates_path)
+    candidates = pd.read_parquet(candidates_path)
+
+    logger.info("Computing audit metrics ...")
+    metrics = compute_audit_metrics(silver, candidates)
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    json_path = output_dir / f"{AUDIT_VERSION}.json"
+    md_path = output_dir / f"{AUDIT_VERSION}.md"
+
+    write_json_report(metrics, json_path)
+    logger.info("JSON report: %s", json_path)
+
+    write_markdown_report(metrics, md_path)
+    logger.info("Markdown report: %s", md_path)
+
+    sample_path = output_dir / "baseline_quality_sample.parquet"
+    sample = build_stratified_sample(silver, candidates, sample_size=sample_size)
+    sample.to_parquet(sample_path, index=False)
+    logger.info("Sample parquet: %s (%d rows)", sample_path, len(sample))
+
+    click.echo(
+        json.dumps(
+            {
+                "json_report": str(json_path),
+                "md_report": str(md_path),
+                "sample_parquet": str(sample_path),
+                "total_jobs": metrics["total_jobs"],
+                "total_candidates": metrics["total_candidates"],
+                "jobs_with_regex_skills": metrics["jobs_with_regex_skills"],
+                "jobs_with_regex_skills_pct": metrics["jobs_with_regex_skills_pct"],
+                "sample_rows": len(sample),
+            },
+            indent=2,
+        )
+    )
 
 
 # ---------------------------------------------------------------------------
