@@ -235,6 +235,10 @@ def build_stratified_sample(
     if not parts:
         return candidates.head(sample_size)
 
-    # ponytail: drop_duplicates on (job_id, candidate_index) is sufficient dedup
+    # ponytail: keep explicit strata first, then fill to requested size from the pool.
     result = pd.concat(parts).drop_duplicates(subset=["job_id", "candidate_index"])
+    if len(result) < sample_size:
+        result = pd.concat([result, candidates]).drop_duplicates(
+            subset=["job_id", "candidate_index"]
+        )
     return result.head(sample_size)

@@ -186,6 +186,20 @@ def test_sample_respects_size(silver: pd.DataFrame, candidates: pd.DataFrame) ->
     assert len(sample) <= 3
 
 
+def test_sample_fills_requested_size_when_available(
+    silver: pd.DataFrame, candidates: pd.DataFrame
+) -> None:
+    bigger = pd.concat(
+        [
+            candidates.assign(job_id=f"j-extra-{idx}", candidate_index=idx)
+            for idx in range(10)
+        ],
+        ignore_index=True,
+    )
+    sample = build_stratified_sample(silver, bigger, sample_size=8)
+    assert len(sample) == 8
+
+
 def test_sample_no_duplicate_rows(silver: pd.DataFrame, candidates: pd.DataFrame) -> None:
     sample = build_stratified_sample(silver, candidates, sample_size=100)
     assert not sample.duplicated(subset=["job_id", "candidate_index"]).any()
