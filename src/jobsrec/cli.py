@@ -9,6 +9,7 @@ recommend         Load gold artefacts → return top-k JSON recommendations.
 profile-silver    Profile a silver Parquet and write a JSON data report.
 temporal-demo     Build a fast temporal trend demo report and plots.
 temporal-clusters Build fixed temporal cluster analytics report and plots.
+cluster-movement  Build weekly temporal cluster movement metrics.
 skill-evolution   Build offline skill-share evolution analytics report and plots.
 populares-validate Validate populares-scraper Parquet outputs.
 populares-build-gold Build draft gold Parquet outputs for apolo-rag.
@@ -596,6 +597,49 @@ def temporal_clusters_cmd(
                 "generated_files": result.generated_files,
             },
             indent=2,
+        )
+    )
+
+# ---------------------------------------------------------------------------
+# cluster-movement
+# ---------------------------------------------------------------------------
+
+@main.command("cluster-movement")
+@click.option("--clusters-dir", required=True, type=click.Path(exists=True, file_okay=False, path_type=Path))
+@click.option("--jobs-path", required=True, type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--candidates-path", required=True, type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--output-dir", required=True, type=click.Path(file_okay=False, path_type=Path))
+@click.option("--log-level", default="INFO", show_default=True)
+def cluster_movement_cmd(
+    clusters_dir: Path,
+    jobs_path: Path,
+    candidates_path: Path,
+    output_dir: Path,
+    log_level: str,
+) -> None:
+    """Build weekly temporal cluster movement metrics."""
+    _setup_logging(log_level)
+
+    from jobsrec.trends.cluster_movement import run_cluster_movement
+
+    result = run_cluster_movement(
+        clusters_dir=clusters_dir,
+        jobs_path=jobs_path,
+        candidates_path=candidates_path,
+        output_dir=output_dir,
+    )
+    click.echo(
+        json.dumps(
+            {
+                "cluster_to_global_path": str(result.cluster_to_global_path),
+                "pairwise_path": str(result.pairwise_path),
+                "self_drift_path": str(result.self_drift_path),
+                "descriptors_path": str(result.descriptors_path),
+                "report_path": str(result.report_path),
+                "generated_files": result.generated_files,
+            },
+            indent=2,
+            ensure_ascii=False,
         )
     )
 
