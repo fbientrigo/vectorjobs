@@ -70,3 +70,9 @@ graphify-out/.graphify_python
 /graphify-out/cache
 /data
 /.serena
+
+# Images and media
+*.png
+
+# Generated reports and artifacts
+reports/

@@ -136,3 +136,47 @@ def write_extraction_manifest(
     manifest_path = output_dir / "extraction_manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
     return manifest_path
+
+
+def get_stratified_partitions(
+    silver: pd.DataFrame,
+    candidates: pd.DataFrame,
+    sample_size: int,
+    sources: tuple[str, ...],
+    sections: tuple[str, ...],
+    industries: tuple[str, ...],
+    random_seed: int | None = None,
+) -> list[pd.DataFrame]:
+    """Helper to partition candidates into stratified slices."""
+    has_skills = candidates["skills_normalized"].apply(lambda x: bool(json.loads(x)))
+    per_stratum = max(1, sample_size // 20)
+    parts: list[pd.DataFrame] = []
+
+    def _take(df: pd.DataFrame, n: int) -> pd.DataFrame:
+        if df.empty:
+            return df
+        if random_seed is not None:
+            return df.sample(n=min(n, len(df)), random_state=random_seed)
+        return df.head(n)
+
+    parts.append(_take(candidates[has_skills], per_stratum))
+    parts.append(_take(candidates[~has_skills], per_stratum))
+
+    for src in sources:
+        sub = candidates[candidates["candidate_source"] == src]
+        parts.append(_take(sub, per_stratum))
+
+    for sec in sections:
+        sub = candidates[candidates["section_name"] == sec]
+        parts.append(_take(sub, per_stratum))
+
+    if "company_industry" in silver.columns:
+        for kw in industries:
+            job_ids = silver[
+                silver["company_industry"].str.contains(kw, na=False, case=False)
+            ]["job_id"]
+            sub = candidates[candidates["job_id"].isin(job_ids)]
+            parts.append(_take(sub, per_stratum))
+
+    return parts
+

@@ -226,6 +226,56 @@ def build_skill_long_table(df: pd.DataFrame, skill_column: str | None) -> pd.Dat
     return pd.DataFrame(rows, columns=["job_id", "skill"])
 
 
+def build_skill_long_table_from_candidates(
+    candidates_df: pd.DataFrame,
+    allowed_job_ids: set[str],
+) -> pd.DataFrame:
+    """Return one row per (job_id, normalized skill) from candidates matching criteria."""
+    if candidates_df.empty:
+        return pd.DataFrame(columns=["job_id", "skill"])
+
+    cands = candidates_df.copy()
+    cands["job_id"] = cands["job_id"].astype(str)
+    cands = cands[cands["job_id"].isin(allowed_job_ids)]
+    if cands.empty:
+        return pd.DataFrame(columns=["job_id", "skill"])
+
+    if "candidate_source" in cands.columns:
+        cands = cands[cands["candidate_source"].isin(["li", "paragraph"])]
+    if cands.empty:
+        return pd.DataFrame(columns=["job_id", "skill"])
+
+    if "section_name" in cands.columns:
+        cands["section_name_clean"] = cands["section_name"].fillna("").astype(str).str.strip().str.lower()
+        preferred_sections = {"requisitos", "habilidades", "conocimientos"}
+        cands["is_preferred"] = cands["section_name_clean"].isin(preferred_sections)
+        cands["is_empty"] = cands["section_name_clean"].isin(["", "none"])
+
+        has_preferred = cands.groupby("job_id")["is_preferred"].transform("any")
+        keep_mask = (has_preferred & cands["is_preferred"]) | (~has_preferred & cands["is_empty"])
+        cands = cands[keep_mask]
+
+    if cands.empty:
+        return pd.DataFrame(columns=["job_id", "skill"])
+
+    rows: list[dict[str, Any]] = []
+    if "skills_normalized" in cands.columns:
+        for job_id, val in zip(cands["job_id"], cands["skills_normalized"]):
+            if not val or pd.isna(val):
+                continue
+            try:
+                skills = json.loads(val)
+            except Exception:
+                continue
+            if isinstance(skills, list):
+                for skill in skills:
+                    norm = normalize_skill(skill)
+                    if norm:
+                        rows.append({"job_id": job_id, "skill": norm})
+
+    return pd.DataFrame(rows, columns=["job_id", "skill"]).drop_duplicates()
+
+
 def compute_domain_skill_monthly(job_skills_long: pd.DataFrame, job_domains: pd.DataFrame) -> pd.DataFrame:
     """Compute the share of each domain's postings that require each skill, per time bin."""
     domain_job_counts = (
@@ -260,59 +310,126 @@ def prepare_skill_composition_plot_data(
     domain_df: pd.DataFrame,
     top_n: int = 5,
     low_support_threshold: int = 100,
+    min_skill_share_pct: float = 5.0,
+    label: str = "Others",
 ) -> tuple[pd.DataFrame, list[str]]:
-    """Normalize skill mentions to a per-bin 100% composition with Other."""
+    """Normalize skill mentions to a per-bin 100% composition with Others based on min_skill_share_pct threshold."""
     columns = ["time_bin", "skill", "skill_job_count", "composition_share", "job_count", "low_support"]
     if domain_df.empty:
         return pd.DataFrame(columns=columns), []
+
     work = domain_df.copy()
     work["skill_job_count"] = pd.to_numeric(work["skill_job_count"], errors="coerce").fillna(0.0)
     work["job_count"] = pd.to_numeric(work["job_count"], errors="coerce").fillna(0).astype(int)
-    top_skills = (
-        work.groupby("skill")["skill_job_count"]
-        .sum()
-        .sort_values(ascending=False)
-        .head(top_n)
-        .index
-        .astype(str)
-        .tolist()
-    )
-    top_skills = [skill for skill in top_skills if skill.lower() != "other"]
-    rows: list[dict[str, object]] = []
+
+    # Step 1: For each time_bin, determine which skills are explicit (share >= min_skill_share_pct).
+    # And which skills are grouped into label ("Others" or "Otros").
+    # We also keep track of total_mentions and job_count per time_bin.
+    explicit_skills_set = set()
+    time_bin_data = {} # time_bin -> ({skill: count}, others_count)
+    time_bin_totals = {} # time_bin -> total_mentions
+    time_bin_supports = {} # time_bin -> job_count
+
     for time_bin, group in work.groupby("time_bin", sort=True):
         total_mentions = float(group["skill_job_count"].sum())
-        if total_mentions <= 0:
-            continue
         support = int(group["job_count"].max())
-        for skill in top_skills:
-            count = float(group.loc[group["skill"].astype(str) == skill, "skill_job_count"].sum())
-            rows.append(
-                {
+        time_bin_totals[time_bin] = total_mentions
+        time_bin_supports[time_bin] = support
+
+        if total_mentions <= 0:
+            time_bin_data[time_bin] = ({}, 0.0)
+            continue
+
+        explicit_in_bin = {}
+        others_count = 0.0
+        
+        for _, row in group.iterrows():
+            skill_name = str(row["skill"])
+            # Ignore existing "Other"/"Others"/"Otros" if any, to avoid conflicts
+            if skill_name.lower() in ["other", "others", "otros"]:
+                continue
+            count = float(row["skill_job_count"])
+            share_pct = 100.0 * count / total_mentions
+            # Match threshold boundary: share == 5.0 remains explicit, share < 5.0 goes to Others
+            if share_pct >= min_skill_share_pct:
+                explicit_in_bin[skill_name] = count
+                explicit_skills_set.add(skill_name)
+            else:
+                others_count += count
+        
+        time_bin_data[time_bin] = (explicit_in_bin, others_count)
+
+    # Step 2: Order the explicit skills.
+    # Sort them by their total skill_job_count globally across the entire domain_df in descending order.
+    global_counts = {}
+    for skill in explicit_skills_set:
+        global_counts[skill] = float(work.loc[work["skill"].astype(str) == skill, "skill_job_count"].sum())
+    
+    sorted_explicit_skills = sorted(explicit_skills_set, key=lambda s: global_counts[s], reverse=True)
+    
+    # The final ordered list of skills for the plot:
+    ordered_skills = sorted_explicit_skills + [label] if sorted_explicit_skills else []
+
+    # Step 3: Reconstruct rows for the returned DataFrame.
+    rows: list[dict[str, object]] = []
+    for time_bin in sorted(time_bin_data.keys()):
+        explicit_in_bin, others_count = time_bin_data[time_bin]
+        total_mentions = time_bin_totals[time_bin]
+        support = time_bin_supports[time_bin]
+        
+        if total_mentions <= 0:
+            for skill in sorted_explicit_skills:
+                rows.append({
                     "time_bin": str(time_bin),
                     "skill": skill,
-                    "skill_job_count": count,
-                    "composition_share": count / total_mentions,
+                    "skill_job_count": 0.0,
+                    "composition_share": 0.0,
                     "job_count": support,
                     "low_support": support < low_support_threshold,
-                }
-            )
-        other_count = float(group.loc[~group["skill"].astype(str).isin(top_skills), "skill_job_count"].sum())
-        rows.append(
-            {
+                })
+            rows.append({
                 "time_bin": str(time_bin),
-                "skill": "Other",
-                "skill_job_count": other_count,
-                "composition_share": other_count / total_mentions,
+                "skill": label,
+                "skill_job_count": 0.0,
+                "composition_share": 0.0,
                 "job_count": support,
                 "low_support": support < low_support_threshold,
-            }
-        )
+            })
+            continue
+
+        # Add explicit skills
+        for skill in sorted_explicit_skills:
+            count = explicit_in_bin.get(skill, 0.0)
+            rows.append({
+                "time_bin": str(time_bin),
+                "skill": skill,
+                "skill_job_count": count,
+                "composition_share": count / total_mentions,
+                "job_count": support,
+                "low_support": support < low_support_threshold,
+            })
+
+        # Add label ("Others" or "Otros")
+        rows.append({
+            "time_bin": str(time_bin),
+            "skill": label,
+            "skill_job_count": others_count,
+            "composition_share": others_count / total_mentions,
+            "job_count": support,
+            "low_support": support < low_support_threshold,
+        })
+
     result = pd.DataFrame(rows, columns=columns)
-    ordered_skills = top_skills + ["Other"] if top_skills else []
     return result, ordered_skills
 
 
-def _write_skill_evolution_plot(domain_df: pd.DataFrame, domain_label: str, path: Path, top_n: int) -> str:
+def _write_skill_evolution_plot(
+    domain_df: pd.DataFrame,
+    domain_label: str,
+    path: Path,
+    top_n: int,
+    min_skill_share_pct: float = 5.0,
+) -> str:
     import matplotlib
 
     matplotlib.use("Agg")
@@ -326,7 +443,14 @@ def _write_skill_evolution_plot(domain_df: pd.DataFrame, domain_label: str, path
         ax.axis("off")
         status = "insufficient_data"
     else:
-        composition, ordered_skills = prepare_skill_composition_plot_data(domain_df, top_n=min(top_n, 5))
+        label = "Otros"
+        composition, ordered_skills = prepare_skill_composition_plot_data(
+            domain_df,
+            top_n=top_n,
+            low_support_threshold=100,
+            min_skill_share_pct=min_skill_share_pct,
+            label=label,
+        )
         if composition.empty:
             ax.text(0.5, 0.5, f"No hay menciones de skills para {domain_label}", ha="center", va="center")
             ax.axis("off")
@@ -345,8 +469,44 @@ def _write_skill_evolution_plot(domain_df: pd.DataFrame, domain_label: str, path
             for skill in ordered_skills:
                 values = pivot.reindex(unique_bins).get(skill, pd.Series(0.0, index=unique_bins)).to_numpy(dtype=float)
                 matrix.append(values)
-            colors = ["#2563eb", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#94a3b8"]
-            ax.stackplot(x, matrix, labels=ordered_skills, colors=colors[: len(matrix)], alpha=0.9)
+            
+            # Construct plot_colors list matching ordered_skills
+            base_colors = [
+                "#2563eb", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6",
+                "#14b8a6", "#ec4899", "#f97316", "#84cc16", "#a855f7",
+                "#06b6d4", "#6366f1", "#f43f5e", "#1e293b", "#64748b",
+            ]
+            plot_colors = []
+            for skill in ordered_skills:
+                if skill in ["Otros", "Others", "Other"]:
+                    plot_colors.append("#94a3b8") # Slate gray for Others
+                else:
+                    idx = len(plot_colors) % len(base_colors)
+                    plot_colors.append(base_colors[idx])
+            
+            stacks = ax.stackplot(
+                x,
+                matrix,
+                labels=ordered_skills,
+                colors=plot_colors[: len(matrix)],
+                alpha=0.9,
+                edgecolor="white",
+                linewidth=1.2,
+            )
+            
+            # Construct plot_hatches list matching ordered_skills
+            base_hatches = ["", "//", "\\\\", "xx", "--", "||", ".."]
+            plot_hatches = []
+            for skill in ordered_skills:
+                if skill in ["Otros", "Others", "Other"]:
+                    plot_hatches.append("") # Keep Others solid slate gray
+                else:
+                    idx = len(plot_hatches) % len(base_hatches)
+                    plot_hatches.append(base_hatches[idx])
+
+            for i, stack in enumerate(stacks):
+                if i < len(plot_hatches):
+                    stack.set_hatch(plot_hatches[i])
             support = composition.groupby("time_bin")["job_count"].max().reindex(unique_bins).fillna(0).astype(int)
             low_support = support < 100
             for idx, is_low in enumerate(low_support.tolist()):
@@ -356,7 +516,7 @@ def _write_skill_evolution_plot(domain_df: pd.DataFrame, domain_label: str, path
             ax.text(
                 0.0,
                 1.02,
-                "Share de composición: top-5 + Other suma 100% por intervalo; bins n<100 sombreados.",
+                f"Share de composición: skills >= {min_skill_share_pct}% + {label} suma 100% por intervalo; bins n<100 sombreados.",
                 transform=ax.transAxes,
                 fontsize=9,
                 color="#475569",
@@ -416,20 +576,36 @@ def _write_report(
         f"- Time bin: `{manifest['bin_size']}`",
         f"- Time column: `{manifest['schema_mapping']['time_column']}`",
         f"- Skill column: `{manifest['schema_mapping'].get('skill_column')}`",
+        f"- Skill source used: `{manifest.get('skill_source', 'skills_text')}`",
+        f"- Deterministic candidate skills available: `{manifest.get('candidates_available', False)}`",
+        f"- Skill dictionary version: `{manifest.get('skill_dict_version') or 'N/A'}`",
         "",
+        "## Caveat",
+        "> [!WARNING]",
+        "> Regex skills cover named hard skills only and miss many domain skills.",
+        "",
+    ]
+    if not manifest.get("candidates_available", False):
+        lines.extend([
+            "## Warning",
+            "> [!IMPORTANT]",
+            "> Skill evolution is using the legacy `skills_text` source because candidate skills were missing/not provided.",
+            "",
+        ])
+    lines.extend([
         "## Domain Assignment",
         (
             "Domains are assigned with TF-IDF + SVD job embeddings matched against domain "
             "description embeddings (cosine similarity), with a keyword fallback. This replaces "
             "the Qwen embedding step from `notebooks/cluster_skill_timelines_colab.ipynb` for "
             "local/offline use. No LLM enrichment is used; skills come only from "
-            f"`{manifest['schema_mapping'].get('skill_column')}`."
+            f"`{manifest['schema_mapping'].get('skill_column')}` if candidates not available, otherwise candidates."
         ),
         "",
         _format_table(domain_counts, ["domain", "domain_label", "n_jobs", "n_uncertain"], 10),
         "",
         "## Skill Evolution Plots",
-    ]
+    ])
     for record in plot_records:
         if record["png"]:
             lines.append(f"- {record['domain_label']}: `{record['png']}`")
@@ -472,6 +648,8 @@ def run_skill_evolution(
     confidence_threshold: float = 0.05,
     margin_threshold: float = 0.01,
     command_used: str | None = None,
+    candidates_path: Path | None = None,
+    min_skill_share_pct: float = 5.0,
 ) -> SkillEvolutionResult:
     """Run local skill-share evolution analytics and write all report artifacts."""
     started_at = time.perf_counter()
@@ -486,6 +664,10 @@ def run_skill_evolution(
     selected["_posted_at"] = _parse_datetime(selected[schema["time_column"]])
     selected = selected[selected["_posted_at"].notna()].reset_index(drop=True)
     selected["time_bin"] = _time_bins(selected["_posted_at"], bin_size)
+
+    # Convert job_id to string to align join keys
+    selected = selected.copy()
+    selected["job_id"] = selected["job_id"].astype(str)
 
     embeddings, vectorizer, svd, _, embedding_meta = build_temporal_cluster_embeddings(
         selected["_analysis_text"],
@@ -507,7 +689,26 @@ def run_skill_evolution(
     job_domains["time_bin"] = selected["time_bin"].to_numpy()
     job_domains = job_domains[DOMAIN_ASSIGNMENT_COLUMNS]
 
-    job_skills_long = build_skill_long_table(selected, schema["skill_column"])
+    skill_source = "skills_text"
+    candidates_available = False
+    skill_dict_version = None
+
+    if candidates_path is not None and candidates_path.exists():
+        candidates_available = True
+        skill_source = "candidates"
+        df_cands = pd.read_parquet(candidates_path)
+        job_skills_long = build_skill_long_table_from_candidates(df_cands, set(selected["job_id"]))
+        manifest_file = candidates_path.parent / "extraction_manifest.json"
+        if manifest_file.exists():
+            try:
+                manifest_data = json.loads(manifest_file.read_text(encoding="utf-8"))
+                skill_dict_version = manifest_data.get("skill_dict_version") or manifest_data.get("skill_dictionary_version")
+            except Exception:
+                pass
+    else:
+        job_skills_long = build_skill_long_table(selected, schema["skill_column"])
+        job_skills_long["job_id"] = job_skills_long["job_id"].astype(str)
+
     domain_skill_monthly = compute_domain_skill_monthly(job_skills_long, job_domains)
 
     domain_counts = (
@@ -543,7 +744,13 @@ def run_skill_evolution(
         domain_df = domain_skill_monthly[domain_skill_monthly["domain"].astype(str) == domain]
         png_path = outdir / f"skill_evolution_{domain}.png"
         note_path = outdir / f"skill_evolution_{domain}_insufficient_data.txt"
-        status = _write_skill_evolution_plot(domain_df, DOMAIN_LABELS[domain], png_path, top_n=top_n_skills)
+        status = _write_skill_evolution_plot(
+            domain_df,
+            DOMAIN_LABELS[domain],
+            png_path,
+            top_n=top_n_skills,
+            min_skill_share_pct=min_skill_share_pct,
+        )
         if status == "saved":
             generated_paths.append(png_path)
             plot_records.append({"domain": domain, "domain_label": DOMAIN_LABELS[domain], "png": str(png_path), "note": None})
@@ -554,14 +761,16 @@ def run_skill_evolution(
 
     time_bin_counts = {str(k): int(v) for k, v in selected.groupby("time_bin").size().to_dict().items()}
     reliability = build_reliability_assessment(time_bin_counts)
-
     valid_dates = selected["_posted_at"].dropna()
     limitations = [
         "TF-IDF + SVD domain assignment is a CPU-safe baseline; it is less accurate than the Qwen-based assignment used in the Colab notebook.",
         "Skills are deterministic, derived only from the skills column; no LLM enrichment is performed.",
         "Domain confidence/margin thresholds were tuned for TF-IDF cosine similarities, which run lower than dense sentence-embedding similarities.",
         "Time bins with few postings can make skill shares noisy.",
+        "Regex skills cover named hard skills only and miss many domain skills.",
     ]
+    if not candidates_available:
+        limitations.append("Warning: Skill evolution is using the legacy skills_text source because candidate skills were missing/not provided.")
     if embedding_meta.get("embedding_fallback_reason"):
         limitations.append("TF-IDF + SVD embedding fell back to plain TF-IDF; see embedding metadata.")
 
@@ -570,6 +779,10 @@ def run_skill_evolution(
         "input_path": str(input_path),
         "input_row_count": int(len(df_input)),
         "selected_row_count": int(len(selected)),
+        "skill_source": skill_source,
+        "candidates_available": candidates_available,
+        "skill_dict_version": skill_dict_version,
+        "caveat": "Regex skills cover named hard skills only and miss many domain skills.",
         "date_range": {
             "min": valid_dates.min().isoformat() if not valid_dates.empty else None,
             "max": valid_dates.max().isoformat() if not valid_dates.empty else None,
@@ -579,6 +792,7 @@ def run_skill_evolution(
         "random_seed": int(random_state),
         "confidence_threshold": float(confidence_threshold),
         "margin_threshold": float(margin_threshold),
+        "min_skill_share_pct": float(min_skill_share_pct),
         "command_used": command_used or "jobsrec skill-evolution",
         "git_commit": _git_commit(),
         "package_versions": _package_versions(),

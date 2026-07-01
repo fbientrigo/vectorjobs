@@ -51,14 +51,9 @@ def load_triplets(path: str | Path) -> list[JobTriplet]:
 
 
 def _read_jsonl(path: str | Path) -> list[dict[str, Any]]:
-    records: list[dict[str, Any]] = []
-    with Path(path).open("r", encoding="utf-8") as handle:
-        for line_no, line in enumerate(handle, start=1):
-            line = line.strip()
-            if not line:
-                continue
-            record = json.loads(line)
-            if not isinstance(record, dict):
-                raise ValueError(f"line {line_no} is not a JSON object")
-            records.append(record)
-    return records
+    return [
+        json.loads(line)
+        for line in Path(path).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+

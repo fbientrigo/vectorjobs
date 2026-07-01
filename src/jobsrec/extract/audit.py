@@ -200,37 +200,16 @@ def build_stratified_sample(
 
     Strata: has/lacks skills, candidate_source, section_name, industry.
     """
-    has_skills_mask = candidates["skills_normalized"].apply(
-        lambda x: bool(json.loads(x))
+    from jobsrec.extract.candidates import get_stratified_partitions
+
+    parts = get_stratified_partitions(
+        silver=silver,
+        candidates=candidates,
+        sample_size=sample_size,
+        sources=("title", "li", "paragraph"),
+        sections=("requisitos", "habilidades", "conocimientos", "funciones", "responsabilidades"),
+        industries=("Salud", "Retail", "Minería", "Industrial", "Tech", "Telecomunicaciones", "Finanzas", "Banca", "Educación"),
     )
-    per_stratum = max(1, sample_size // 20)
-    parts: list[pd.DataFrame] = []
-
-    parts.append(candidates[has_skills_mask].head(per_stratum))
-    parts.append(candidates[~has_skills_mask].head(per_stratum))
-
-    # by candidate_source
-    for src in ("title", "li", "paragraph"):
-        sub = candidates[candidates["candidate_source"] == src]
-        if not sub.empty:
-            parts.append(sub.head(per_stratum))
-
-    # by section_name
-    for sec in ("requisitos", "habilidades", "conocimientos", "funciones", "responsabilidades"):
-        sub = candidates[candidates["section_name"] == sec]
-        if not sub.empty:
-            parts.append(sub.head(per_stratum))
-
-    # by industry keyword
-    if "company_industry" in silver.columns:
-        for keyword in ("Salud", "Retail", "Minería", "Industrial", "Tech",
-                        "Telecomunicaciones", "Finanzas", "Banca", "Educación"):
-            job_ids = silver[
-                silver["company_industry"].str.contains(keyword, na=False, case=False)
-            ]["job_id"]
-            sub = candidates[candidates["job_id"].isin(job_ids)]
-            if not sub.empty:
-                parts.append(sub.head(per_stratum))
 
     if not parts:
         return candidates.head(sample_size)
@@ -242,3 +221,4 @@ def build_stratified_sample(
             subset=["job_id", "candidate_index"]
         )
     return result.head(sample_size)
+

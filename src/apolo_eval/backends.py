@@ -42,29 +42,10 @@ class MockEmbeddingBackend:
 
 
 def _tokens(text: str) -> list[str]:
-    raw_tokens = re.findall(r"[\w+#.]+", text.lower(), flags=re.UNICODE)
-    expanded: list[str] = []
-    for token in raw_tokens:
-        expanded.append(_SYNONYMS.get(token, token))
-    return expanded
+    return re.findall(r"[\w+#.]+", text.lower(), flags=re.UNICODE)
 
 
 def _stable_bucket(token: str, dim: int) -> int:
     digest = hashlib.blake2b(token.encode("utf-8"), digest_size=8).digest()
     return int.from_bytes(digest, "big") % dim
 
-
-_SYNONYMS = {
-    "desarrollador": "developer",
-    "desarrolladora": "developer",
-    "ingeniero": "engineer",
-    "ingeniera": "engineer",
-    "datos": "data",
-    "analista": "analyst",
-    "software": "software",
-    "backend": "backend",
-    "frontend": "frontend",
-    "aprendizaje": "learning",
-    "maquina": "machine",
-    "máquina": "machine",
-}

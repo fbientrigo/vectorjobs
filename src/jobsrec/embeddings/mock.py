@@ -40,15 +40,13 @@ class MockEmbeddingBackend(EmbeddingBackend):
             return np.empty((0, self._dim), dtype=np.float32)
 
         vectors = np.zeros((len(texts), self._dim), dtype=np.float32)
-        for start in range(0, len(texts), batch_size):
-            batch = texts[start : start + batch_size]
-            for offset, text in enumerate(batch):
-                digest = hashlib.sha256(str(text).encode("utf-8")).digest()
-                raw = np.frombuffer(digest, dtype=np.uint8).astype(np.float32)
-                tiled = np.resize(raw, self._dim)
-                vector = (tiled / 127.5) - 1.0
-                norm = np.linalg.norm(vector)
-                if norm > 0:
-                    vector = vector / norm
-                vectors[start + offset] = vector
+        for offset, text in enumerate(texts):
+            digest = hashlib.sha256(str(text).encode("utf-8")).digest()
+            raw = np.frombuffer(digest, dtype=np.uint8).astype(np.float32)
+            tiled = np.resize(raw, self._dim)
+            vector = (tiled / 127.5) - 1.0
+            norm = np.linalg.norm(vector)
+            if norm > 0:
+                vector = vector / norm
+            vectors[offset] = vector
         return vectors

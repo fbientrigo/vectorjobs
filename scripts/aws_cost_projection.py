@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Project storage (TB) and AWS cost as the vectorjobs dataset grows.
 
-Two reproducible figures are written to ``presentations/estado_actual/figs/``:
+Two reproducible figures are written to ``presentations/0620_current/figs/``:
 
 1. ``storage_growth_tb.png`` -- cumulative stored terabytes vs. time for three
    ingestion-growth scenarios (conservative / base / aggressive).
@@ -30,7 +30,7 @@ import matplotlib.ticker as mtick
 import numpy as np
 import pandas as pd
 
-DEFAULT_OUT_DIR = Path("presentations/estado_actual/figs")
+DEFAULT_OUT_DIR = Path("presentations/0620_current/figs")
 
 # --- Data-growth assumptions ------------------------------------------------ #
 BASE_JOBS_PER_MONTH = 123_849          # current LinkedIn drop (Apr-2024)

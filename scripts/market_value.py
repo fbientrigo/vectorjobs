@@ -32,7 +32,7 @@ import matplotlib.ticker as mtick
 import numpy as np
 import pandas as pd
 
-DEFAULT_OUT_DIR = Path("presentations/estado_actual/figs")
+DEFAULT_OUT_DIR = Path("presentations/0620_current/figs")
 TOTAL_ROWS = 10_000  # rows used in reports/temporal_clusters/report.md
 DEFAULT_MEDIAN_SALARY = 75_000
 
