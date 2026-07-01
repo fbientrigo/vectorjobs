@@ -9,7 +9,7 @@ cd "$HERE"
 
 # Asegura que TODAS las figuras existan (reutilizadas + generadas).
 if [ ! -f figs/aws_cost_projection.png ] || [ ! -f figs/market_value_by_sector.png ] \
-   || [ ! -f figs/centroid_drift_by_month.png ]; then
+   || [ ! -f figs/centroid_drift_by_week.png ]; then
   echo "Faltan figuras; ejecutando generate_figures.sh..."
   bash "$HERE/generate_figures.sh"
 fi

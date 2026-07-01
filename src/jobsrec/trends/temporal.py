@@ -65,7 +65,7 @@ SEMANTIC_DRIFT_COLUMNS = [
 class TemporalDemoResult:
     """Paths and manifest for a completed temporal demo run."""
 
-    monthly_drift_path: Path
+    weekly_drift_path: Path
     skill_growth_path: Path
     manifest_path: Path
     report_path: Path
@@ -746,7 +746,7 @@ def compute_salary_weighted_centroid_drift(
     usable = weights.notna()
     months = sorted(df.loc[usable, "month"].dropna().unique().tolist())
     vector_dim = int(vectors.shape[1]) if len(df) else 0
-    centroids_path = output_dir / "monthly_centroids_salary_weighted.npy"
+    centroids_path = output_dir / "weekly_centroids_salary_weighted.npy"
 
     centroid_rows: list[np.ndarray] = []
     metadata_rows: list[dict[str, Any]] = []
@@ -1171,8 +1171,8 @@ def _write_required_plots(
 ) -> list[Path]:
     figures_dir.mkdir(parents=True, exist_ok=True)
     paths = [
-        figures_dir / "job_volume_by_month.png",
-        figures_dir / "centroid_drift_by_month.png",
+        figures_dir / "job_volume_by_week.png",
+        figures_dir / "centroid_drift_by_week.png",
         figures_dir / "top_rising_skills.png",
         figures_dir / "top_declining_skills.png",
     ]
@@ -1203,7 +1203,7 @@ def _write_salary_weighted_plots(
     figures_dir.mkdir(parents=True, exist_ok=True)
     paths: list[Path] = []
     if not salary_drift.empty:
-        drift_plot = figures_dir / "centroid_drift_salary_weighted_by_month.png"
+        drift_plot = figures_dir / "centroid_drift_salary_weighted_by_week.png"
         plot_df = salary_drift[["month_to", "cosine_distance"]].rename(
             columns={"month_to": "month", "cosine_distance": "centroid_drift"}
         )
@@ -1215,7 +1215,7 @@ def _write_salary_weighted_plots(
         )
         paths.append(drift_plot)
     if not salary_metadata.empty:
-        coverage_plot = figures_dir / "salary_coverage_by_month.png"
+        coverage_plot = figures_dir / "salary_coverage_by_week.png"
         _plot_salary_coverage(salary_metadata, coverage_plot)
         paths.append(coverage_plot)
     return paths
@@ -1449,7 +1449,7 @@ def _comparison_note(output_dir: Path, manifest: dict[str, Any], drift: pd.DataF
         return None
     ten_k_dir = output_dir.parent / "trends_10k"
     ten_k_manifest_path = ten_k_dir / "temporal_manifest.json"
-    ten_k_drift_path = ten_k_dir / "monthly_centroid_drift.parquet"
+    ten_k_drift_path = ten_k_dir / "weekly_centroid_drift.parquet"
     if not ten_k_manifest_path.exists() or not ten_k_drift_path.exists():
         return None
     try:
@@ -1546,8 +1546,8 @@ def run_temporal_demo(
             device=device,
             cache_dir=cache_dir,
         )
-        centroid_storage_path = output_dir / "monthly_centroids.npy"
-        centroid_metadata_path = output_dir / "monthly_centroid_metadata.parquet"
+        centroid_storage_path = output_dir / "weekly_centroids.npy"
+        centroid_metadata_path = output_dir / "weekly_centroid_metadata.parquet"
         drift, centroid_metadata = compute_semantic_centroid_drift(
             temporal,
             vectors,
@@ -1560,12 +1560,12 @@ def run_temporal_demo(
         svd_enabled = False
     growth = compute_skill_growth(temporal)
 
-    monthly_drift_path = output_dir / "monthly_centroid_drift.parquet"
+    weekly_drift_path = output_dir / "weekly_centroid_drift.parquet"
     skill_growth_path = output_dir / "skill_growth.parquet"
     manifest_path = output_dir / "temporal_manifest.json"
-    drift.to_parquet(monthly_drift_path, index=False)
+    drift.to_parquet(weekly_drift_path, index=False)
     growth.to_parquet(skill_growth_path, index=False)
-    generated_paths = [monthly_drift_path, skill_growth_path, manifest_path]
+    generated_paths = [weekly_drift_path, skill_growth_path, manifest_path]
     if centroid_metadata_path is not None:
         generated_paths.append(centroid_metadata_path)
     if centroid_storage_path is not None:
@@ -1589,8 +1589,8 @@ def run_temporal_demo(
                 embedding_model=embedding_model if representation == "semantic_embeddings" else None,
             )
         )
-        salary_weighted_drift_path = output_dir / "monthly_centroid_drift_salary_weighted.parquet"
-        salary_weighted_metadata_path = output_dir / "monthly_centroid_metadata_salary_weighted.parquet"
+        salary_weighted_drift_path = output_dir / "weekly_centroid_drift_salary_weighted.parquet"
+        salary_weighted_metadata_path = output_dir / "weekly_centroid_metadata_salary_weighted.parquet"
         salary_weight_diagnostics_path = output_dir / "salary_weight_diagnostics.parquet"
         salary_drift.to_parquet(salary_weighted_drift_path, index=False)
         salary_metadata.to_parquet(salary_weighted_metadata_path, index=False)
@@ -1619,9 +1619,9 @@ def run_temporal_demo(
     generated_paths.extend(cluster_paths)
     generated_paths.extend(similarity_paths)
 
-    months = sorted(temporal["month"].dropna().unique().tolist())
-    monthly_row_counts = {str(month): int(count) for month, count in temporal.groupby("month").size().to_dict().items()}
-    reliability = build_reliability_assessment(monthly_row_counts)
+    weeks = sorted(temporal["month"].dropna().unique().tolist())
+    weekly_row_counts = {str(week): int(count) for week, count in temporal.groupby("month").size().to_dict().items()}
+    reliability = build_reliability_assessment(weekly_row_counts)
     reliability_warnings = list(reliability["warnings"])
     known_limitations = list(reliability["known_limitations"])
     if semantic_limit_applied:
@@ -1648,9 +1648,10 @@ def run_temporal_demo(
         "time_column_interpretation": TIME_COLUMN_INTERPRETATIONS.get(time_column, "temporal column"),
         "centroid_weighting": centroid_weighting,
         "min_jobs_per_month": int(min_jobs_per_month),
-        "first_month": months[0] if months else None,
-        "last_month": months[-1] if months else None,
-        "n_months": int(len(months)),
+        "first_month": weeks[0] if weeks else None,
+        "last_month": weeks[-1] if weeks else None,
+        "n_weeks": int(len(weeks)),
+        "n_months": int(len(weeks)),
         "runtime_seconds": float(time.perf_counter() - started_at),
         "text_column": TEXT_COLUMN,
         "skill_column": SKILL_COLUMN,
@@ -1666,7 +1667,8 @@ def run_temporal_demo(
         "device": device if representation == "semantic_embeddings" else None,
         "max_embedding_rows": max_embedding_rows if representation == "semantic_embeddings" else None,
         "semantic_limit_applied": bool(semantic_limit_applied),
-        "monthly_row_counts": monthly_row_counts,
+        "weekly_row_counts": weekly_row_counts,
+        "monthly_row_counts": weekly_row_counts,
         "reliability_label": reliability["label"],
         "reliability_warnings": reliability_warnings,
         "known_limitations": known_limitations,
@@ -1711,7 +1713,7 @@ def run_temporal_demo(
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
     return TemporalDemoResult(
-        monthly_drift_path=monthly_drift_path,
+        weekly_drift_path=weekly_drift_path,
         skill_growth_path=skill_growth_path,
         manifest_path=manifest_path,
         report_path=report_path,

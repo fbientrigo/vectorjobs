@@ -191,12 +191,15 @@ def _build_tfidf_svd_embeddings(
     random_state: int,
     max_features: int = 20000,
 ) -> tuple[np.ndarray, TfidfVectorizer, Any | None, Any, dict[str, Any]]:
+    from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
+    from jobsrec.text.spanish_stopwords import APOLO_STOPWORDS
+    combined_stopwords = list(ENGLISH_STOP_WORDS.union(APOLO_STOPWORDS))
     vectorizer = TfidfVectorizer(
         max_features=max_features,
         min_df=1,
         max_df=0.95,
         ngram_range=(1, 2),
-        stop_words="english",
+        stop_words=combined_stopwords,
     )
     tfidf = vectorizer.fit_transform(_safe_strings(texts))
     n_components = min(50, max(0, min(tfidf.shape) - 1))
@@ -255,7 +258,14 @@ def build_temporal_cluster_embeddings(
                 model_name=embedding_model,
                 batch_size=embedding_batch_size,
             )
-            vectorizer = TfidfVectorizer(max_features=20000, min_df=1, stop_words="english")
+            from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
+            from jobsrec.text.spanish_stopwords import APOLO_STOPWORDS
+            combined_stopwords = list(ENGLISH_STOP_WORDS.union(APOLO_STOPWORDS))
+            vectorizer = TfidfVectorizer(
+                max_features=20000,
+                min_df=1,
+                stop_words=combined_stopwords,
+            )
             tfidf = vectorizer.fit_transform(_safe_strings(texts))
             metadata["embedding_fallback_reason"] = None
             return embeddings, vectorizer, None, tfidf, metadata
@@ -657,6 +667,148 @@ def _write_cluster_bubble_timeline(metrics: pd.DataFrame, labels: pd.DataFrame, 
     plt.close(fig)
 
 
+def plot_etched_shares_timeseries(
+    ax: Any,
+    df: pd.DataFrame,
+    time_col: str,
+    label_col: str,
+    share_col: str,
+    support_col: str,
+    top_n: int = 8,
+    low_support_threshold: int = 100,
+    others_label: str = "Otros",
+) -> None:
+    """Plot timeseries shares as etched stacked areas with support-aware warnings.
+
+    ponytail: modularized implementation of support-aware stacked area plots with hatches.
+    """
+    import math
+    import numpy as np
+    import pandas as pd
+    import matplotlib.ticker as mtick
+
+    if df.empty:
+        ax.text(0.5, 0.5, "No hay datos disponibles para graficar", ha="center", va="center")
+        ax.axis("off")
+        return
+
+    # 1. Identify top_n categories by total overall support
+    top_labels = (
+        df.groupby(label_col)[support_col]
+        .sum()
+        .sort_values(ascending=False)
+        .head(top_n)
+        .index.tolist()
+    )
+
+    # 2. Map other categories to "Otros"
+    plot_df = df.copy()
+    plot_df["_plot_label"] = np.where(
+        plot_df[label_col].isin(top_labels),
+        plot_df[label_col],
+        others_label,
+    )
+
+    # 3. Aggregate shares by time_bin and the new label mapping
+    aggregated = (
+        plot_df.groupby([time_col, "_plot_label"])
+        .agg(
+            share=(share_col, "sum"),
+            support=(support_col, "sum"),
+        )
+        .reset_index()
+    )
+
+    unique_bins = sorted(df[time_col].dropna().unique())
+    x = np.arange(len(unique_bins))
+
+    # 4. Prepare ordered labels: top ones first, then "Otros" if present
+    ordered_labels = [lbl for lbl in top_labels if lbl in aggregated["_plot_label"].unique()]
+    if others_label in aggregated["_plot_label"].unique():
+        ordered_labels.append(others_label)
+
+    # 5. Pivot data for stackplot
+    pivot = aggregated.pivot_table(
+        index=time_col,
+        columns="_plot_label",
+        values="share",
+        aggfunc="sum",
+        fill_value=0.0,
+    )
+
+    matrix = []
+    for lbl in ordered_labels:
+        values = pivot.reindex(unique_bins).get(lbl, pd.Series(0.0, index=unique_bins)).to_numpy(dtype=float)
+        matrix.append(values)
+
+    # 6. Base colors and hatches
+    base_colors = [
+        "#2563eb", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6",
+        "#14b8a6", "#ec4899", "#f97316", "#84cc16", "#a855f7",
+        "#06b6d4", "#6366f1", "#f43f5e", "#1e293b", "#64748b",
+    ]
+    plot_colors = []
+    for lbl in ordered_labels:
+        if lbl == others_label:
+            plot_colors.append("#94a3b8")  # Slate gray for Otros
+        else:
+            idx = len(plot_colors) % len(base_colors)
+            plot_colors.append(base_colors[idx])
+
+    base_hatches = ["", "//", "\\\\", "xx", "--", "||", ".."]
+    plot_hatches = []
+    for lbl in ordered_labels:
+        if lbl == others_label:
+            plot_hatches.append("")  # Keep Others solid slate gray
+        else:
+            idx = len(plot_hatches) % len(base_hatches)
+            plot_hatches.append(base_hatches[idx])
+
+    # 7. Stackplot
+    stacks = ax.stackplot(
+        x,
+        matrix,
+        labels=ordered_labels,
+        colors=plot_colors[: len(matrix)],
+        alpha=0.9,
+        edgecolor="white",
+        linewidth=1.2,
+    )
+
+    for i, stack in enumerate(stacks):
+        if i < len(plot_hatches):
+            stack.set_hatch(plot_hatches[i])
+
+    # 8. Support aware low-support shading
+    bin_support = df.groupby(time_col)[support_col].sum().reindex(unique_bins).fillna(0).astype(int)
+    low_support = bin_support < 100
+    for idx, is_low in enumerate(low_support.tolist()):
+        if is_low:
+            ax.axvspan(idx - 0.5, idx + 0.5, color="#e2e8f0", alpha=0.35, zorder=0)
+
+    # 9. Style & formatting
+    ax.set_ylim(0, 1)
+    ax.yaxis.set_major_formatter(mtick.PercentFormatter(1.0))
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.spines["left"].set_color("#cbd5e1")
+    ax.spines["bottom"].set_color("#cbd5e1")
+    ax.grid(axis="y", linestyle="--", alpha=0.5, color="#cbd5e1")
+    ax.grid(visible=False, axis="x")
+
+    if unique_bins:
+        step = max(1, math.ceil(len(unique_bins) / 12))
+        ticks = list(range(0, len(unique_bins), step))
+        if ticks[-1] != len(unique_bins) - 1:
+            ticks.append(len(unique_bins) - 1)
+        ax.set_xticks(ticks)
+        ax.set_xticklabels([str(unique_bins[i]) for i in ticks])
+
+    ax.tick_params(axis="x", rotation=45, colors="#475569", labelsize=8)
+    ax.tick_params(axis="y", colors="#475569", labelsize=8)
+    ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1), borderaxespad=0, frameon=False, fontsize=8)
+
+
 def _write_cluster_share_timeseries(metrics: pd.DataFrame, path: Path, top_n: int = 8) -> None:
     import matplotlib
 
@@ -668,34 +820,30 @@ def _write_cluster_share_timeseries(metrics: pd.DataFrame, path: Path, top_n: in
         ax.text(0.5, 0.5, "No temporal cluster metrics available", ha="center", va="center")
         ax.axis("off")
     else:
-        unique_bins = sorted(metrics["time_bin"].dropna().astype(str).unique())
-        bin_to_idx = {time_bin: i for i, time_bin in enumerate(unique_bins)}
-        top_clusters = (
-            metrics.groupby(["cluster_id", "cluster_label"])["n_jobs"]
-            .sum()
-            .sort_values(ascending=False)
-            .head(top_n)
-            .reset_index()
+        plot_etched_shares_timeseries(
+            ax=ax,
+            df=metrics,
+            time_col="time_bin",
+            label_col="cluster_label",
+            share_col="share_jobs",
+            support_col="n_jobs",
+            top_n=top_n,
+            low_support_threshold=100,
         )
-        for _, row in top_clusters.iterrows():
-            subset = metrics[metrics["cluster_id"] == row["cluster_id"]].sort_values("time_bin")
-            x_values = subset["time_bin"].astype(str).map(bin_to_idx)
-            ax.plot(x_values, subset["share_jobs"], marker="o", label=row["cluster_label"])
-        ax.set_title(f"Participación de clusters en la ventana observada")
-        ax.set_xlabel("Intervalo")
-        ax.set_ylabel("Share de postings")
-        if unique_bins:
-            step = max(1, math.ceil(len(unique_bins) / 12))
-            ticks = list(range(0, len(unique_bins), step))
-            if ticks[-1] != len(unique_bins) - 1:
-                ticks.append(len(unique_bins) - 1)
-            ax.set_xticks(ticks)
-            ax.set_xticklabels([unique_bins[i] for i in ticks])
-        ax.tick_params(axis="x", rotation=45)
-        ax.grid(True, alpha=0.25)
-        ax.legend(loc="best", fontsize=8)
+        ax.set_title("Participación de clusters en la ventana observada", fontsize=13, fontweight="bold", pad=18, color="#1e293b")
+        ax.text(
+            0.0,
+            1.02,
+            "Share de postings: clusters agrupados por etiqueta; bins n<100 sombreados.",
+            transform=ax.transAxes,
+            fontsize=9,
+            color="#475569",
+        )
+        ax.set_xlabel("Intervalo", fontsize=10, labelpad=8, color="#475569")
+        ax.set_ylabel("Share de postings", fontsize=10, labelpad=8, color="#475569")
+
     fig.tight_layout()
-    fig.savefig(path, dpi=150)
+    fig.savefig(path, dpi=150, bbox_inches="tight")
     plt.close(fig)
 
 

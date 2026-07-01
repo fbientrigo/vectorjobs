@@ -56,7 +56,7 @@ python scripts/build_presentation_assets.py --raw-data-dir data/raw/linkedin-job
    Requiere `python3` + `matplotlib`/`numpy`/`pandas` y el repo completo
    (necesita `reports/` para las figuras reutilizadas).
 
-2. **Sube la carpeta `presentations/estado_actual/` a Overleaf** (New Project →
+2. **Sube la carpeta `presentations/0620_current/` a Overleaf** (New Project →
    Upload Project, o arrastra la carpeta). Compila con **pdfLaTeX** (default de
    Overleaf). No necesita Python: las figuras ya están en `figs/`.
 

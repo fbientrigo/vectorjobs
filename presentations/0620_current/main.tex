@@ -103,14 +103,14 @@
         \item Cada job es un vector (TF-IDF/SVD o denso).
         \item Un \textbf{centroide} es el vector promedio de un cluster (un
               "sector" del mercado laboral).
-        \item Calculamos centroides \textbf{por día} para el MVP y medimos la
+        \item Calculamos centroides \textbf{por semana} para el MVP y medimos la
               \textbf{deriva} (distancia coseno entre periodos consecutivos).
         \item La deriva $=$ cuánto se mueve el lenguaje/contenido de un sector
               entre intervalos de la ventana observada.
       \end{itemize}
     \end{column}
     \begin{column}{0.45\textwidth}
-      \includegraphics[width=\linewidth]{centroid_drift_by_month.png}
+      \includegraphics[width=\linewidth]{centroid_drift_by_week.png}
     \end{column}
   \end{columns}
   \vfill
@@ -192,12 +192,12 @@
   \begin{columns}[T]
     \begin{column}{0.5\textwidth}
       \centering
-      \includegraphics[width=\linewidth]{salary_coverage_by_month.png}\\
+      \includegraphics[width=\linewidth]{salary_coverage_by_week.png}\\
       \footnotesize Cobertura de salario utilizable por intervalo; metadatos incompletos.
     \end{column}
     \begin{column}{0.5\textwidth}
       \centering
-      \includegraphics[width=\linewidth]{centroid_drift_salary_weighted_by_month.png}\\
+      \includegraphics[width=\linewidth]{centroid_drift_salary_weighted_by_week.png}\\
       \footnotesize Deriva de centroides ponderada por salario (subset USD).
     \end{column}
   \end{columns}

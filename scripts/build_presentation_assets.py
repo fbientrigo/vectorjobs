@@ -2,7 +2,7 @@
 """Build presentation figures from a dataset and package an Overleaf folder.
 
 This is the one-shot command for the Beamer deck in
-``presentations/estado_actual``. It runs the local analytics pipeline against a
+``presentations/0620_current``. It runs the local analytics pipeline against a
 raw LinkedIn-style dataset, generates every PNG referenced by ``main.tex``, and
 copies the TeX sources plus figures into a self-contained upload directory.
 """
@@ -26,12 +26,12 @@ from jobsrec.trends.temporal import parse_time_column
 
 
 REQUIRED_FIGURES = {
-    "centroid_drift_by_month.png": ("temporal", "centroid_drift_by_month.png"),
+    "centroid_drift_by_week.png": ("temporal", "centroid_drift_by_week.png"),
     "job_cluster_map_svd.png": ("temporal", "job_cluster_map_svd.png"),
-    "salary_coverage_by_month.png": ("temporal", "salary_coverage_by_month.png"),
-    "centroid_drift_salary_weighted_by_month.png": (
+    "salary_coverage_by_week.png": ("temporal", "salary_coverage_by_week.png"),
+    "centroid_drift_salary_weighted_by_week.png": (
         "temporal",
-        "centroid_drift_salary_weighted_by_month.png",
+        "centroid_drift_salary_weighted_by_week.png",
     ),
     "cluster_semantic_trajectory.png": ("clusters", "cluster_semantic_trajectory.png"),
     "cluster_share_timeseries.png": ("clusters", "cluster_share_timeseries.png"),
@@ -49,10 +49,10 @@ GENERATED_FIGURES = [
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--raw-data-dir",
+        "--bronze-db",
         type=Path,
-        default=Path("data/sample"),
-        help="Directory containing postings.csv, jobs/, companies/, and mappings/.",
+        default=Path("data/bronze/jobs.db"),
+        help="Path to bronze SQLite jobs.db.",
     )
     parser.add_argument(
         "--silver-dir",
@@ -69,7 +69,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--template-dir",
         type=Path,
-        default=Path("presentations/estado_actual"),
+        default=Path("presentations/0620_current"),
         help="Presentation source template containing main.tex.",
     )
     parser.add_argument(
@@ -80,14 +80,15 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--sample-size", type=int, default=10000)
     parser.add_argument("--max-rows", type=int, default=100000)
-    parser.add_argument("--time-bin", default="D", choices=["H", "D", "W", "M"])
-    parser.add_argument("--time-column", default="original_listed_time")
+    parser.add_argument("--time-bin", default="W", choices=["H", "D", "W", "M"])
+    parser.add_argument("--time-column", default="first_seen_at")
     parser.add_argument("--k", type=int, default=12)
     parser.add_argument("--random-state", type=int, default=42)
     parser.add_argument("--skip-silver", action="store_true", help="Reuse --silver-path instead of building silver.")
     parser.add_argument("--silver-path", type=Path, help="Existing jobs.parquet for --skip-silver.")
     parser.add_argument("--clean", action="store_true", help="Delete previous report/output folders before running.")
     parser.add_argument("--strict-figures", action="store_true", help="Fail if a required deck figure is not generated.")
+    parser.add_argument("--min-skill-share-pct", type=float, default=5.0, help="Minimum skill share percentage to keep a skill explicit in plotting.")
     return parser.parse_args()
 
 
@@ -118,8 +119,8 @@ def build_silver(args: argparse.Namespace) -> Path:
             "-m",
             "jobsrec.cli",
             "build-silver",
-            "--input-dir",
-            args.raw_data_dir,
+            "--input-db",
+            args.bronze_db,
             "--output-dir",
             args.silver_dir,
         ]
@@ -189,26 +190,30 @@ def run_analytics(args: argparse.Namespace, silver_path: Path) -> dict[str, Path
             args.time_column,
         ]
     )
-    run(
-        [
-            sys.executable,
-            "-m",
-            "jobsrec.cli",
-            "skill-evolution",
-            "--input",
-            silver_path,
-            "--outdir",
-            skills_dir,
-            "--bin",
-            args.time_bin,
-            "--max-rows",
-            args.max_rows,
-            "--random-state",
-            args.random_state,
-            "--time-column",
-            args.time_column,
-        ]
-    )
+    candidates_file = silver_path.parent / "job_extraction_candidates.parquet"
+    cmd = [
+        sys.executable,
+        "-m",
+        "jobsrec.cli",
+        "skill-evolution",
+        "--input",
+        silver_path,
+        "--outdir",
+        skills_dir,
+        "--bin",
+        args.time_bin,
+        "--max-rows",
+        args.max_rows,
+        "--random-state",
+        args.random_state,
+        "--time-column",
+        args.time_column,
+        "--min-skill-share-pct",
+        str(args.min_skill_share_pct),
+    ]
+    if candidates_file.exists():
+        cmd.extend(["--candidates-path", candidates_file])
+    run(cmd)
     return {"temporal": temporal_figs, "clusters": clusters_dir, "skills": skills_dir}
 
 
@@ -307,10 +312,25 @@ def generate_direct_figures(args: argparse.Namespace, silver_path: Path, figs_wo
 
 
 def write_manifest(args: argparse.Namespace, silver_path: Path, figures: list[dict[str, str]]) -> None:
+    skills_manifest_path = args.reports_dir / "skill_evolution" / "manifest.json"
+    skill_source = "unknown"
+    candidates_available = False
+    skill_dict_version = None
+    min_skill_share_pct = args.min_skill_share_pct
+    if skills_manifest_path.exists():
+        try:
+            skills_manifest = json.loads(skills_manifest_path.read_text(encoding="utf-8"))
+            skill_source = skills_manifest.get("skill_source", "skills_text")
+            candidates_available = skills_manifest.get("candidates_available", False)
+            skill_dict_version = skills_manifest.get("skill_dict_version")
+            min_skill_share_pct = skills_manifest.get("min_skill_share_pct", args.min_skill_share_pct)
+        except Exception:
+            pass
+
     manifest = {
         "created_at": datetime.now(timezone.utc).isoformat(),
         "skip_silver": bool(args.skip_silver),
-        "raw_data_dir": None if args.skip_silver else str(args.raw_data_dir),
+        "bronze_db": None if args.skip_silver else str(args.bronze_db),
         "silver_path": str(silver_path),
         "reports_dir": str(args.reports_dir),
         "template_dir": str(args.template_dir),
@@ -321,7 +341,12 @@ def write_manifest(args: argparse.Namespace, silver_path: Path, figures: list[di
         "time_column": args.time_column,
         "k": int(args.k),
         "random_state": int(args.random_state),
+        "min_skill_share_pct": float(min_skill_share_pct),
         "figures": figures,
+        "skill_source": skill_source,
+        "candidates_available": candidates_available,
+        "skill_dict_version": skill_dict_version,
+        "caveat": "Regex skills cover named hard skills only and miss many domain skills.",
     }
     (args.overleaf_dir / "asset_manifest.json").write_text(
         json.dumps(manifest, indent=2),

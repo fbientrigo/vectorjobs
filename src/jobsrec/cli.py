@@ -428,7 +428,7 @@ def temporal_audit_cmd(
     show_default=True,
     type=click.Choice(["first_seen_at", "last_seen_at", "listed_time", "original_listed_time", "expiry", "closed_time"]),
 )
-@click.option("--time-bin", default="M", show_default=True, type=click.Choice(["H", "D", "W", "M"], case_sensitive=False))
+@click.option("--time-bin", default="W", show_default=True, type=click.Choice(["H", "D", "W", "M"], case_sensitive=False))
 @click.option(
     "--centroid-weighting",
     default="unweighted",
@@ -503,11 +503,12 @@ def temporal_demo_cmd(
     click.echo(
         json.dumps(
             {
-                "monthly_drift_path": str(result.monthly_drift_path),
+                "weekly_drift_path": str(result.weekly_drift_path),
                 "skill_growth_path": str(result.skill_growth_path),
                 "manifest_path": str(result.manifest_path),
                 "report_path": str(result.report_path),
                 "n_rows_selected": result.manifest["n_rows_selected"],
+                "n_weeks": result.manifest.get("n_weeks", result.manifest["n_months"]),
                 "n_months": result.manifest["n_months"],
                 "representation": result.manifest["representation"],
                 "time_column": result.manifest["time_column"],
@@ -527,7 +528,7 @@ def temporal_demo_cmd(
 @main.command("temporal-clusters")
 @click.option("--input", "input_path", required=True, type=click.Path(exists=True, dir_okay=False, path_type=Path))
 @click.option("--outdir", required=True, type=click.Path(file_okay=False, path_type=Path))
-@click.option("--bin", "bin_size", default="D", show_default=True, type=click.Choice(["D", "W", "M"], case_sensitive=False))
+@click.option("--bin", "bin_size", default="W", show_default=True, type=click.Choice(["D", "W", "M"], case_sensitive=False))
 @click.option("--k", default=12, show_default=True, type=int)
 @click.option("--embedding", default="tfidf_svd", show_default=True, type=click.Choice(["tfidf_svd", "sentence_transformers"]))
 @click.option("--embedding-model", default="sentence-transformers/all-MiniLM-L6-v2", show_default=True, type=str)
@@ -665,6 +666,8 @@ def profile_silver_cmd(
 @click.option("--confidence-threshold", default=0.05, show_default=True, type=float)
 @click.option("--margin-threshold", default=0.01, show_default=True, type=float)
 @click.option("--log-level", default="INFO", show_default=True)
+@click.option("--candidates-path", default=None, type=click.Path(dir_okay=False, path_type=Path), help="Optional path to job_extraction_candidates.parquet")
+@click.option("--min-skill-share-pct", default=5.0, show_default=True, type=float, help="Minimum skill share percentage to keep a skill explicit in plotting.")
 def skill_evolution_cmd(
     input_path: Path,
     outdir: Path,
@@ -676,12 +679,14 @@ def skill_evolution_cmd(
     confidence_threshold: float,
     margin_threshold: float,
     log_level: str,
+    candidates_path: Optional[Path],
+    min_skill_share_pct: float,
 ) -> None:
     """Build offline skill-share evolution analytics report and plots."""
     _setup_logging(log_level)
-
+ 
     from jobsrec.trends.skill_evolution import run_skill_evolution
-
+ 
     command_parts = [
         "jobsrec skill-evolution",
         f"--input {input_path}",
@@ -692,9 +697,12 @@ def skill_evolution_cmd(
         f"--random-state {random_state}",
         f"--confidence-threshold {confidence_threshold}",
         f"--margin-threshold {margin_threshold}",
+        f"--min-skill-share-pct {min_skill_share_pct}",
     ]
     if time_column:
         command_parts.insert(-2, f"--time-column {time_column}")
+    if candidates_path:
+        command_parts.append(f"--candidates-path {candidates_path}")
     command_used = " ".join(command_parts)
     result = run_skill_evolution(
         input_path=input_path,
@@ -707,6 +715,8 @@ def skill_evolution_cmd(
         confidence_threshold=confidence_threshold,
         margin_threshold=margin_threshold,
         command_used=command_used,
+        candidates_path=candidates_path,
+        min_skill_share_pct=min_skill_share_pct,
     )
     click.echo(
         json.dumps(
@@ -977,6 +987,68 @@ def audit_extraction_baseline_cmd(
                 "jobs_with_regex_skills": metrics["jobs_with_regex_skills"],
                 "jobs_with_regex_skills_pct": metrics["jobs_with_regex_skills_pct"],
                 "sample_rows": len(sample),
+            },
+            indent=2,
+        )
+    )
+
+
+# ---------------------------------------------------------------------------
+# build-labeling-seed
+# ---------------------------------------------------------------------------
+
+@main.command("build-labeling-seed")
+@click.option(
+    "--silver-path",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Path to silver jobs.parquet.",
+)
+@click.option(
+    "--candidates-path",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Path to job_extraction_candidates.parquet.",
+)
+@click.option(
+    "--output-path",
+    required=True,
+    type=click.Path(dir_okay=False, path_type=Path),
+    help="Destination CSV path.",
+)
+@click.option("--sample-size", default=500, show_default=True, type=int)
+@click.option("--random-seed", default=42, show_default=True, type=int)
+@click.option("--log-level", default="INFO", show_default=True)
+def build_labeling_seed_cmd(
+    silver_path: Path,
+    candidates_path: Path,
+    output_path: Path,
+    sample_size: int,
+    random_seed: int,
+    log_level: str,
+) -> None:
+    """Build a balanced labeling seed CSV for manual annotation."""
+    _setup_logging(log_level)
+
+    import pandas as pd
+
+    from jobsrec.extract.labeling import build_labeling_seed, write_labeling_seed
+
+    logger.info("Loading silver: %s", silver_path)
+    silver = pd.read_parquet(silver_path)
+    logger.info("Loading candidates: %s", candidates_path)
+    candidates = pd.read_parquet(candidates_path)
+
+    logger.info("Building labeling seed (sample_size=%d, seed=%d) ...", sample_size, random_seed)
+    df = build_labeling_seed(silver, candidates, sample_size=sample_size, random_seed=random_seed)
+    write_labeling_seed(df, output_path)
+
+    click.echo(
+        json.dumps(
+            {
+                "output_path": str(output_path),
+                "rows": len(df),
+                "columns": list(df.columns),
             },
             indent=2,
         )

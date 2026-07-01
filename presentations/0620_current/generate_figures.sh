@@ -5,7 +5,7 @@
 #   1. Reutilizadas desde reports/ (analitica temporal ya calculada) -> se copian.
 #   2. Nuevas (market value + costos AWS) -> las generan los scripts de Python.
 #
-# Tras correr esto, presentations/estado_actual/ es autocontenida: subela a
+# Tras correr esto, presentations/0620_current/ es autocontenida: subela a
 # Overleaf y compila limpio (Overleaf usa pdfLaTeX, no necesita Python).
 #
 # Uso:  bash generate_figures.sh        (desde cualquier sitio)
@@ -29,17 +29,20 @@ copy_fig() {  # $1 = destino en figs/, $2 = origen relativo al repo
   echo "copiada  figs/$1"
 }
 
-copy_fig centroid_drift_by_month.png              reports/temporal_tfidf_10k/figures/centroid_drift_by_month.png
-copy_fig job_cluster_map_svd.png                  reports/temporal_tfidf_10k/figures/job_cluster_map_svd.png
-copy_fig cluster_semantic_trajectory.png          reports/temporal_clusters/cluster_semantic_trajectory.png
-copy_fig cluster_share_timeseries.png             reports/temporal_clusters/cluster_share_timeseries.png
-copy_fig salary_coverage_by_month.png             reports/temporal_salary_weighted_tfidf_10k/figures/salary_coverage_by_month.png
-copy_fig centroid_drift_salary_weighted_by_month.png reports/temporal_salary_weighted_tfidf_10k/figures/centroid_drift_salary_weighted_by_month.png
-copy_fig skill_evolution_tech.png                 reports/skill_evolution/skill_evolution_tech.png
-copy_fig skill_evolution_health.png               reports/skill_evolution/skill_evolution_health.png
+copy_fig centroid_drift_by_week.png              reports/presentation_assets/temporal_tfidf/figures/centroid_drift_by_week.png
+copy_fig job_cluster_map_svd.png                  reports/presentation_assets/temporal_tfidf/figures/job_cluster_map_svd.png
+copy_fig cluster_semantic_trajectory.png          reports/presentation_assets/temporal_clusters/cluster_semantic_trajectory.png
+copy_fig cluster_share_timeseries.png             reports/presentation_assets/temporal_clusters/cluster_share_timeseries.png
+copy_fig salary_coverage_by_week.png             reports/presentation_assets/temporal_tfidf/figures/salary_coverage_by_week.png
+copy_fig centroid_drift_salary_weighted_by_week.png reports/presentation_assets/temporal_tfidf/figures/centroid_drift_salary_weighted_by_week.png
+copy_fig skill_evolution_tech.png                 reports/presentation_assets/skill_evolution/skill_evolution_tech.png
+copy_fig skill_evolution_health.png               reports/presentation_assets/skill_evolution/skill_evolution_health.png
 
 # --- 2. Figuras nuevas: generadas por los scripts --------------------------- #
 echo "generando figuras nuevas (matplotlib)..."
-( cd "$REPO" && python3 scripts/aws_cost_projection.py && python3 scripts/market_value.py )
+( cd "$REPO" && python3 scripts/aws_cost_projection.py --out-dir "$FIGS" && \
+  python3 scripts/market_value.py \
+    --metrics reports/presentation_assets/temporal_clusters/cluster_time_metrics.parquet \
+    --out-dir "$FIGS" )
 
 echo "OK -> todas las figuras en $FIGS"

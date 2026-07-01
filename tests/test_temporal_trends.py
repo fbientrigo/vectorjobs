@@ -162,13 +162,13 @@ def test_temporal_demo_cli_writes_required_outputs(tmp_path: Path) -> None:
     assert result.exit_code == 0, result.output
     assert report_path.exists()
     assert (output_dir / "temporal_manifest.json").exists()
-    assert (output_dir / "monthly_centroid_drift.parquet").exists()
+    assert (output_dir / "weekly_centroid_drift.parquet").exists()
     assert (output_dir / "skill_growth.parquet").exists()
-    assert (figures_dir / "job_volume_by_month.png").exists()
-    assert (figures_dir / "centroid_drift_by_month.png").exists()
+    assert (figures_dir / "job_volume_by_week.png").exists()
+    assert (figures_dir / "centroid_drift_by_week.png").exists()
     assert (figures_dir / "top_rising_skills.png").exists()
     assert (figures_dir / "top_declining_skills.png").exists()
-    assert (figures_dir / "centroid_drift_by_month.png").stat().st_size > 0
+    assert (figures_dir / "centroid_drift_by_week.png").stat().st_size > 0
 
 
 def test_temporal_audit_cli_writes_schema_outputs(tmp_path: Path) -> None:
@@ -305,7 +305,7 @@ def test_temporal_demo_semantic_mock_manifest_and_outputs(tmp_path: Path) -> Non
 
     assert result.exit_code == 0, result.output
     manifest = json.loads((output_dir / "temporal_manifest.json").read_text())
-    drift = pd.read_parquet(output_dir / "monthly_centroid_drift.parquet")
+    drift = pd.read_parquet(output_dir / "weekly_centroid_drift.parquet")
     assert manifest["representation"] == "semantic_embeddings"
     assert manifest["embedding_backend"] == "mock"
     assert manifest["embedding_model"] == "deterministic-mock"
@@ -314,8 +314,8 @@ def test_temporal_demo_semantic_mock_manifest_and_outputs(tmp_path: Path) -> Non
     assert manifest["embedding_cache_dir"] == str(tmp_path / "cache")
     assert manifest["embedding_cache_path"]
     assert manifest["reliability_label"] == "limited_temporal_coverage"
-    assert (output_dir / "monthly_centroid_metadata.parquet").exists()
-    assert (output_dir / "monthly_centroids.npy").exists()
+    assert (output_dir / "weekly_centroid_metadata.parquet").exists()
+    assert (output_dir / "weekly_centroids.npy").exists()
     assert {"month_from", "month_to", "cosine_distance"}.issubset(drift.columns)
 
 
@@ -478,23 +478,23 @@ def test_temporal_demo_cli_time_column_and_salary_weighting_outputs(tmp_path: Pa
 
     assert result.exit_code == 0, result.output
     manifest = json.loads((output_dir / "temporal_manifest.json").read_text())
-    weighted = pd.read_parquet(output_dir / "monthly_centroid_drift_salary_weighted.parquet")
+    weighted = pd.read_parquet(output_dir / "weekly_centroid_drift_salary_weighted.parquet")
     assert manifest["time_column"] == "original_listed_time"
     assert manifest["centroid_weighting"] == "both"
     assert manifest["salary_rows_used"] == 8
-    assert (output_dir / "monthly_centroid_metadata_salary_weighted.parquet").exists()
+    assert (output_dir / "weekly_centroid_metadata_salary_weighted.parquet").exists()
     assert (output_dir / "salary_weight_diagnostics.parquet").exists()
-    assert (output_dir / "figures" / "centroid_drift_salary_weighted_by_month.png").exists()
-    assert (output_dir / "figures" / "salary_coverage_by_month.png").exists()
-    assert (output_dir / "figures" / "centroid_drift_salary_weighted_by_month.png").stat().st_size > 0
-    assert (output_dir / "figures" / "salary_coverage_by_month.png").stat().st_size > 0
+    assert (output_dir / "figures" / "centroid_drift_salary_weighted_by_week.png").exists()
+    assert (output_dir / "figures" / "salary_coverage_by_week.png").exists()
+    assert (output_dir / "figures" / "centroid_drift_salary_weighted_by_week.png").stat().st_size > 0
+    assert (output_dir / "figures" / "salary_coverage_by_week.png").stat().st_size > 0
     assert {"n_salary_from", "n_salary_to", "salary_coverage_from", "salary_coverage_to"}.issubset(
         weighted.columns
     )
 
 
 def test_beamer_figure_references_are_packaged_and_no_red_caveats() -> None:
-    tex = Path("presentations/estado_actual/main.tex").read_text(encoding="utf-8")
+    tex = Path("presentations/0620_current/main.tex").read_text(encoding="utf-8")
     referenced = set()
     for part in tex.split("\\includegraphics")[1:]:
         name = part.split("{", 1)[1].split("}", 1)[0]
