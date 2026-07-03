@@ -35,6 +35,7 @@ REQUIRED_FIGURES = {
     ),
     "cluster_semantic_trajectory.png": ("clusters", "cluster_semantic_trajectory.png"),
     "cluster_share_timeseries.png": ("clusters", "cluster_share_timeseries.png"),
+    "mean_pairwise_cluster_distance_by_week.png": ("clusters", "mean_pairwise_cluster_distance_by_week.png"),
     "skill_evolution_tech.png": ("skills", "skill_evolution_tech.png"),
     "skill_evolution_health.png": ("skills", "skill_evolution_health.png"),
 }
@@ -111,6 +112,22 @@ def build_silver(args: argparse.Namespace) -> Path:
             raise SystemExit("--skip-silver requires --silver-path")
         if not args.silver_path.exists():
             raise SystemExit(f"Silver file not found: {args.silver_path}")
+        
+        # If skip_silver is True but candidates file does not exist, extract them to the same directory
+        candidates_file = args.silver_path.parent / "job_extraction_candidates.parquet"
+        if not candidates_file.exists():
+            run(
+                [
+                    sys.executable,
+                    "-m",
+                    "jobsrec.cli",
+                    "extract-candidates",
+                    "--silver-path",
+                    args.silver_path,
+                    "--output-dir",
+                    args.silver_path.parent,
+                ]
+            )
         return args.silver_path
 
     run(
@@ -128,6 +145,21 @@ def build_silver(args: argparse.Namespace) -> Path:
     silver_path = args.silver_dir / "jobs.parquet"
     if not silver_path.exists():
         raise SystemExit(f"build-silver did not produce {silver_path}")
+
+    # Extract skill candidates from silver data so skill-evolution has candidates to plot
+    run(
+        [
+            sys.executable,
+            "-m",
+            "jobsrec.cli",
+            "extract-candidates",
+            "--silver-path",
+            silver_path,
+            "--output-dir",
+            args.silver_dir,
+        ]
+    )
+
     return silver_path
 
 

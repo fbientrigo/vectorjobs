@@ -134,6 +134,28 @@
   \caveat{Estas proyecciones ayudan a inspeccionar la ventana observada; no prueban una tendencia estable.}
 \end{frame}
 
+\begin{frame}{¿Convergen los clusters laborales?}
+  \begin{columns}[T]
+    \begin{column}{0.56\textwidth}
+      \centering
+      \includegraphics[width=\linewidth]{mean_pairwise_cluster_distance_by_week.png}
+    \end{column}
+    \begin{column}{0.44\textwidth}
+      \small
+      \begin{itemize}
+        \item \textbf{Convergencia vs divergencia}: convergencia sería movimiento hacia un centro semántico compartido; divergencia sería separación sostenida entre clusters.
+        \item Veredicto actual: \textbf{estable}.
+        \item No hay evidencia de convergencia global fuerte ni divergencia sostenida.
+        \item Sí hay movimiento local por cluster, visible en la deriva propia semanal.
+      \end{itemize}
+    \end{column}
+  \end{columns}
+  \vspace{0.3em}
+  \small No observamos una convergencia global fuerte ni una divergencia sostenida. La estructura semántica semanal parece relativamente estable, con variaciones locales por cluster.
+  \vfill
+  \caveat{Cobertura temporal limitada; los bins semanales son ruidosos. Las distancias son diagnósticos exploratorios sobre una representación TF-IDF/SVD reconstruida y asignaciones semanales de clusters.}
+\end{frame}
+
 \begin{frame}{Clusters interpretables (k=12)}
   \begin{columns}[T]
     \begin{column}{0.46\textwidth}

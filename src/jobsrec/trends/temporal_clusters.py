@@ -108,7 +108,8 @@ def _first_present(columns: pd.Index, candidates: list[str]) -> str | None:
 
 
 def _parse_datetime(values: pd.Series) -> pd.Series:
-    parsed = pd.to_datetime(values, errors="coerce")
+    # ponytail: specify format="mixed" to suppress format-inference warnings on noisy date strings
+    parsed = pd.to_datetime(values, errors="coerce", format="mixed")
     numeric = pd.to_numeric(values, errors="coerce")
     if numeric.notna().any():
         parsed_years = parsed.dropna().dt.year
@@ -442,7 +443,7 @@ def _complete_daily_focus_grid(data: pd.DataFrame, selected: pd.DataFrame) -> pd
     return complete.drop(columns=[column for column in ["cluster_label_selected"] if column in complete.columns])
 
 
-def _cosine_distance(a: np.ndarray, b: np.ndarray) -> float:
+def cosine_distance(a: np.ndarray, b: np.ndarray) -> float:
     norm_a = float(np.linalg.norm(a))
     norm_b = float(np.linalg.norm(b))
     if norm_a == 0.0 or norm_b == 0.0:
@@ -479,7 +480,7 @@ def compute_temporal_cluster_metrics(
         indices = group["_embedding_index"].to_numpy(dtype=int)
         temporal_centroid = embeddings[indices].mean(axis=0)
         previous = previous_centroids.get(int(cluster_id))
-        drift_previous = _cosine_distance(previous, temporal_centroid) if previous is not None else np.nan
+        drift_previous = cosine_distance(previous, temporal_centroid) if previous is not None else np.nan
         previous_centroids[int(cluster_id)] = temporal_centroid
         cluster_salary = group["_annual_salary"]
         n_jobs = int(len(group))
@@ -496,7 +497,7 @@ def compute_temporal_cluster_metrics(
                 "salary_mean": float(cluster_salary.mean()) if n_with_salary else np.nan,
                 "salary_coverage": float(n_with_salary / n_jobs) if n_jobs else 0.0,
                 "top_skills": _top_skills_for_values(group[skill_column], n_skills=5) if skill_column else "",
-                "centroid_drift_from_global": _cosine_distance(centroids[int(cluster_id)], temporal_centroid),
+                "centroid_drift_from_global": cosine_distance(centroids[int(cluster_id)], temporal_centroid),
                 "centroid_drift_from_previous_bin": drift_previous,
                 "n_with_salary": n_with_salary,
                 "n_with_skills": n_with_skills,

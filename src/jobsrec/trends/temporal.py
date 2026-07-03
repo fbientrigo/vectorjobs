@@ -95,7 +95,8 @@ def parse_time_column(df: pd.DataFrame, time_column: str) -> pd.Series:
     """Parse a temporal column with pandas coercion and numeric epoch fallback."""
     if time_column not in df.columns:
         raise ValueError(f"Input data must contain a '{time_column}' column.")
-    parsed = pd.to_datetime(df[time_column], errors="coerce")
+    # ponytail: specify format="mixed" to suppress format-inference warnings on noisy date strings
+    parsed = pd.to_datetime(df[time_column], errors="coerce", format="mixed")
 
     numeric = pd.to_numeric(df[time_column], errors="coerce")
     if numeric.notna().any() and parsed.notna().any():

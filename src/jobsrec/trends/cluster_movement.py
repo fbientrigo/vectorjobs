@@ -16,6 +16,7 @@ from jobsrec.trends.temporal_clusters import (
     build_temporal_cluster_embeddings,
     detect_temporal_cluster_schema,
     _join_text_columns,
+    cosine_distance,
 )
 
 
@@ -71,14 +72,6 @@ class ClusterMovementResult:
     descriptors_path: Path
     report_path: Path
     generated_files: list[str]
-
-
-def cosine_distance(a: np.ndarray, b: np.ndarray) -> float:
-    norm_a = float(np.linalg.norm(a))
-    norm_b = float(np.linalg.norm(b))
-    if norm_a == 0.0 or norm_b == 0.0:
-        return float("nan")
-    return float(1.0 - np.dot(a, b) / (norm_a * norm_b))
 
 
 def cluster_confidence(n_jobs: int) -> str:
