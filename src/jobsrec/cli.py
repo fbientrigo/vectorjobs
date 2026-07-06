@@ -1100,6 +1100,99 @@ def build_labeling_seed_cmd(
 
 
 # ---------------------------------------------------------------------------
+# build-agent-labeling-pack
+# ---------------------------------------------------------------------------
+
+@main.command("build-agent-labeling-pack")
+@click.option(
+    "--silver-path",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Path to silver jobs.parquet.",
+)
+@click.option(
+    "--candidates-path",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Path to job_extraction_candidates.parquet.",
+)
+@click.option(
+    "--output-dir",
+    required=True,
+    type=click.Path(file_okay=False, path_type=Path),
+    help="Output directory for labeling pack files.",
+)
+@click.option("--sample-size", default=800, show_default=True, type=int)
+@click.option("--random-seed", default=3407, show_default=True, type=int)
+@click.option("--log-level", default="INFO", show_default=True)
+def build_agent_labeling_pack_cmd(
+    silver_path: Path,
+    candidates_path: Path,
+    output_dir: Path,
+    sample_size: int,
+    random_seed: int,
+    log_level: str,
+) -> None:
+    """Build representative, deterministic sample for agent labeling."""
+    _setup_logging(log_level)
+
+    import pandas as pd
+    from jobsrec.extract.agent_pack import (
+        build_agent_labeling_pack,
+        JSON_SCHEMA,
+        PROMPT_MARKDOWN,
+    )
+
+    logger.info("Loading silver: %s", silver_path)
+    silver = pd.read_parquet(silver_path)
+    logger.info("Loading candidates: %s", candidates_path)
+    candidates = pd.read_parquet(candidates_path)
+
+    logger.info("Building agent labeling pack (sample_size=%d, seed=%d) ...", sample_size, random_seed)
+    rows, manifest = build_agent_labeling_pack(
+        silver=silver,
+        candidates=candidates,
+        sample_size=sample_size,
+        random_seed=random_seed,
+    )
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # 1. Write agent_labeling_pack.jsonl
+    jsonl_path = output_dir / "agent_labeling_pack.jsonl"
+    with jsonl_path.open("w", encoding="utf-8") as f:
+        for r in rows:
+            f.write(json.dumps(r, ensure_ascii=False) + "\n")
+    logger.info("Wrote labeling pack: %s (%d rows)", jsonl_path, len(rows))
+
+    # 2. Write agent_labeling_manifest.json
+    manifest_path = output_dir / "agent_labeling_manifest.json"
+    with manifest_path.open("w", encoding="utf-8") as f:
+        json.dump(manifest, f, indent=2, ensure_ascii=False)
+    logger.info("Wrote manifest: %s", manifest_path)
+
+    # 3. Write agent_labeling_prompt.md
+    prompt_path = output_dir / "agent_labeling_prompt.md"
+    prompt_path.write_text(PROMPT_MARKDOWN, encoding="utf-8")
+    logger.info("Wrote prompt markdown: %s", prompt_path)
+
+    # 4. Write agent_labeling_schema.json
+    schema_path = output_dir / "agent_labeling_schema.json"
+    with schema_path.open("w", encoding="utf-8") as f:
+        json.dump(JSON_SCHEMA, f, indent=2, ensure_ascii=False)
+    logger.info("Wrote schema JSON: %s", schema_path)
+
+    summary = {
+        "pack_path": str(jsonl_path),
+        "manifest_path": str(manifest_path),
+        "prompt_path": str(prompt_path),
+        "schema_path": str(schema_path),
+        "rows": len(rows),
+    }
+    click.echo(json.dumps(summary, indent=2, ensure_ascii=False))
+
+
+# ---------------------------------------------------------------------------
 # Entry-point guard
 # ---------------------------------------------------------------------------
 
