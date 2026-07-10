@@ -1,0 +1,48 @@
+{
+  "model": "minimax/minimax-m3",
+  "n_rows_requested": 50,
+  "n_rows_completed": 46,
+  "request_failures": 0,
+  "empty_output_failures": 0,
+  "json_parse_failures": 2,
+  "schema_failures": 0,
+  "validation_failure_count": 2,
+  "evidence_substring_failures": 2,
+  "total_skills": 365,
+  "skills_per_job_mean": 7.934782608695652,
+  "total_education_requirements": 29,
+  "seniority_counts": {
+    "junior": 15,
+    "unknown": 12,
+    "lead": 8,
+    "semi_senior": 9,
+    "senior": 1,
+    "intern": 1
+  },
+  "warning_counts": {
+    "missing_dates": 4,
+    "ambiguous_skill": 6,
+    "ambiguous_education_requirement": 1,
+    "low_information_input": 2,
+    "truncated_input": 1
+  },
+  "confidence_mean": 0.855013698630137,
+  "confidence_1_rate": 0.0,
+  "broad_domain_skill_rate": 0.5178082191780822,
+  "empty_skill_rows": 0,
+  "prompt_tokens": 94646,
+  "completion_tokens": 112247,
+  "total_tokens": 206893,
+  "estimated_cost_usd": 0.15164603999999993,
+  "latency_seconds": 22.73905999999988,
+  "started_at": "2026-07-10T03:00:27.929050+00:00",
+  "finished_at": "2026-07-10T03:19:48.107853+00:00",
+  "wall_time_seconds": 1160.188000000002,
+  "prompt_hash": "1effda79d5652e92c5e364f6c72865ca1d68424788c5a4c851abcfc99cd004b2",
+  "sample_hash": "8cfb69d0e561319851bc8de6e4388c12eca9c42d11cddc426ed170800b446073",
+  "git_commit": "9505e91629d7fe178933eb40492bf6f060cce165",
+  "limitations": [
+    "Weak-label evaluation only; not ground truth (see README.md).",
+    "estimated_cost_usd relies on OpenRouter's optional usage.cost field; null if the provider never reported pricing."
+  ]
+}

@@ -1,0 +1,2 @@
+{"job_id": "1118119523", "field_path": "apolo_extraction.skills[4].evidence", "evidence": "aseguramiento el correcto almacenamiento, control de inventario y preparación de productos", "reason": "evidence is not a substring of job_card_text"}
+{"job_id": "1118088800", "field_path": "apolo_extraction.education_requirements[0].evidence", "evidence": "Requisitos mínimos:\nTítulo Técnico Profesional Superior", "reason": "evidence is not a substring of job_card_text"}

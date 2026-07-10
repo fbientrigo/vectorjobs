@@ -1,0 +1,46 @@
+{
+  "model": "deepseek/deepseek-v4-pro",
+  "n_rows_requested": 50,
+  "n_rows_completed": 50,
+  "request_failures": 0,
+  "empty_output_failures": 0,
+  "json_parse_failures": 0,
+  "schema_failures": 0,
+  "validation_failure_count": 0,
+  "evidence_substring_failures": 0,
+  "total_skills": 380,
+  "skills_per_job_mean": 7.6,
+  "total_education_requirements": 33,
+  "seniority_counts": {
+    "unknown": 19,
+    "lead": 8,
+    "semi_senior": 12,
+    "junior": 9,
+    "senior": 1,
+    "intern": 1
+  },
+  "warning_counts": {
+    "ambiguous_skill": 8,
+    "low_information_input": 5,
+    "schema_uncertain": 2
+  },
+  "confidence_mean": 0.8824736842105263,
+  "confidence_1_rate": 0.06315789473684211,
+  "broad_domain_skill_rate": 0.4342105263157895,
+  "empty_skill_rows": 0,
+  "prompt_tokens": 97507,
+  "completion_tokens": 154619,
+  "total_tokens": 252126,
+  "estimated_cost_usd": 0.26120108372,
+  "latency_seconds": 56.609359999999725,
+  "started_at": "2026-07-10T03:39:38.056891+00:00",
+  "finished_at": "2026-07-10T04:27:13.611172+00:00",
+  "wall_time_seconds": 2855.5469999999987,
+  "prompt_hash": "1effda79d5652e92c5e364f6c72865ca1d68424788c5a4c851abcfc99cd004b2",
+  "sample_hash": "8cfb69d0e561319851bc8de6e4388c12eca9c42d11cddc426ed170800b446073",
+  "git_commit": "9505e91629d7fe178933eb40492bf6f060cce165",
+  "limitations": [
+    "Weak-label evaluation only; not ground truth (see README.md).",
+    "estimated_cost_usd relies on OpenRouter's optional usage.cost field; null if the provider never reported pricing."
+  ]
+}

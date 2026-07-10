@@ -1,0 +1,47 @@
+{
+  "model": "xiaomi/mimo-v2.5",
+  "n_rows_requested": 50,
+  "n_rows_completed": 46,
+  "request_failures": 0,
+  "empty_output_failures": 0,
+  "json_parse_failures": 0,
+  "schema_failures": 0,
+  "validation_failure_count": 4,
+  "evidence_substring_failures": 4,
+  "total_skills": 299,
+  "skills_per_job_mean": 6.5,
+  "total_education_requirements": 40,
+  "seniority_counts": {
+    "unknown": 20,
+    "lead": 3,
+    "semi_senior": 13,
+    "junior": 7,
+    "intern": 2,
+    "senior": 1
+  },
+  "warning_counts": {
+    "missing_dates": 1,
+    "low_information_input": 2,
+    "ambiguous_education_requirement": 1,
+    "ambiguous_skill": 1
+  },
+  "confidence_mean": 0.8377926421404682,
+  "confidence_1_rate": 0.006688963210702341,
+  "broad_domain_skill_rate": 0.5250836120401338,
+  "empty_skill_rows": 0,
+  "prompt_tokens": 97277,
+  "completion_tokens": 40994,
+  "total_tokens": 138271,
+  "estimated_cost_usd": 0.0182903224,
+  "latency_seconds": 14.900640000000276,
+  "started_at": "2026-07-10T02:47:38.691339+00:00",
+  "finished_at": "2026-07-10T03:00:26.895658+00:00",
+  "wall_time_seconds": 768.2029999999941,
+  "prompt_hash": "1effda79d5652e92c5e364f6c72865ca1d68424788c5a4c851abcfc99cd004b2",
+  "sample_hash": "8cfb69d0e561319851bc8de6e4388c12eca9c42d11cddc426ed170800b446073",
+  "git_commit": "9505e91629d7fe178933eb40492bf6f060cce165",
+  "limitations": [
+    "Weak-label evaluation only; not ground truth (see README.md).",
+    "estimated_cost_usd relies on OpenRouter's optional usage.cost field; null if the provider never reported pricing."
+  ]
+}

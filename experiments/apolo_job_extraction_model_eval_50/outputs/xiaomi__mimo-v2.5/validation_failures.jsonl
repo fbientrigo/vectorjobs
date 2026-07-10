@@ -1,0 +1,4 @@
+{"job_id": "1118340901", "field_path": "apolo_extraction.skills[0].evidence", "evidence": "Ejecutar labores de mantención preventiva y correctiva", "reason": "evidence is not a substring of job_card_text"}
+{"job_id": "1118119523", "field_path": "apolo_extraction.skills[1].evidence", "evidence": "Control de inventario y preparación de productos", "reason": "evidence is not a substring of job_card_text"}
+{"job_id": "1118209983", "field_path": "apolo_extraction.skills[7].evidence", "evidence": "levamiento cualitativo", "reason": "evidence is not a substring of job_card_text"}
+{"job_id": "1118340293", "field_path": "apolo_extraction.skills[1].evidence", "evidence": "excellente atención a nuestros clientes", "reason": "evidence is not a substring of job_card_text"}
