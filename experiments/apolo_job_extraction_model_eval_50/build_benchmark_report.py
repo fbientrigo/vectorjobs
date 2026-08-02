@@ -54,6 +54,87 @@ def build_all_model_rows() -> list[dict]:
     ]
 
 
+EFFICIENCY_FIELDS = [
+    "timing_basis", "cost_basis", "total_input_tokens", "total_output_tokens",
+    "total_tokens", "observed_cost_usd", "estimated_cost_usd",
+    "cost_for_reporting_usd", "cost_per_eventually_valid_job",
+    "estimated_inference_time_seconds", "seconds_per_valid_job",
+    "completed_jobs_per_minute", "latency_safety_factor",
+]
+
+
+def build_efficiency_rows(rows: list[dict]) -> list[dict]:
+    """Flat efficiency view: measured and estimated runs together, basis explicit."""
+    out = []
+    for r in rows:
+        out.append({"model": r["model"], **{f: r.get(f"efficiency_{f}") for f in EFFICIENCY_FIELDS}})
+    return out
+
+
+def write_efficiency_reports(rows: list[dict]) -> None:
+    eff_rows = build_efficiency_rows(rows)
+    write_csv(eff_rows, REPORTS_DIR / "model_efficiency_comparison.csv")
+    lines = [
+        "# Model Efficiency Comparison — timing & cost",
+        "",
+        "Timing/cost basis is explicit per model. `measured` = provider/API",
+        "telemetry captured during execution. `openrouter_equivalent_estimate`",
+        "= reconstructed from OpenRouter latency/throughput with a conservative",
+        "1.20 (+20%) time overhead (cost is list-price, NOT multiplied by 1.20).",
+        "Subscription/manual runs keep `observed_cost_usd` null and report an",
+        "`estimated_cost_usd` (cost_basis=openrouter_list_price_estimate).",
+        "",
+    ]
+    lines += _md_table(eff_rows, ["model"] + EFFICIENCY_FIELDS)
+    lines.append("")
+    (REPORTS_DIR / "model_efficiency_comparison.md").write_text("\n".join(lines), encoding="utf-8")
+    print(f"Wrote {REPORTS_DIR / 'model_efficiency_comparison.csv'}")
+    print(f"Wrote {REPORTS_DIR / 'model_efficiency_comparison.md'}")
+
+
+def write_historical_efficiency_report(record: dict) -> None:
+    fields = [
+        "display_name", "n_rows", "frozen_50_overlap", "directly_comparable",
+        "quality_comparable_to_frozen_50", "total_input_tokens", "total_output_tokens",
+        "total_tokens", "token_count_is_measured", "cost_basis", "observed_cost_usd",
+        "estimated_cost_usd", "estimated_cost_per_completed_job_usd",
+        "estimated_cost_per_1000_jobs_usd", "timing_basis",
+        "openrouter_performance_provider", "openrouter_latency_seconds",
+        "openrouter_throughput_tokens_per_second", "latency_safety_factor",
+        "base_estimated_runtime_seconds", "estimated_inference_time_seconds",
+        "estimated_seconds_per_completed_job", "estimated_completed_jobs_per_minute",
+    ]
+    row = {f: record.get(f) for f in fields}
+    write_csv([row], REPORTS_DIR / "historical_model_efficiency.csv")
+    lines = [
+        f"# Historical Model Efficiency — {record.get('display_name')}",
+        "",
+        "Efficiency/cost of the recovered historical Gemini dataset, aggregated",
+        f"over its ACTUAL recovered row count ({record.get('n_rows')} rows), NOT an",
+        "assumed 50. Timing is an `openrouter_equivalent_estimate` with a 1.20",
+        "(+20%) overhead; cost is OpenRouter list-price (not multiplied by 1.20).",
+        "",
+        f"> {record.get('comparability_notes', '')}",
+        "",
+        f"> token method: {record.get('token_count_method', '')}",
+        "",
+    ]
+    lines += _md_table([row], fields)
+    lines.append("")
+    (REPORTS_DIR / "historical_model_efficiency.md").write_text("\n".join(lines), encoding="utf-8")
+    print(f"Wrote {REPORTS_DIR / 'historical_model_efficiency.csv'}")
+    print(f"Wrote {REPORTS_DIR / 'historical_model_efficiency.md'}")
+
+
+def _md_table(rows: list[dict], columns: list[str]) -> list[str]:
+    header = "| " + " | ".join(columns) + " |"
+    sep = "| " + " | ".join("---" for _ in columns) + " |"
+    body = []
+    for r in rows:
+        body.append("| " + " | ".join(str(fmt(r.get(c))) for c in columns) + " |")
+    return [header, sep] + body
+
+
 def build_common_semantic_cohort(rows: list[dict]) -> dict:
     model_job_ids = {
         row["model"]: {str(r["job_id"]) for r in loaders.load_extractions(row["model"])}
@@ -128,14 +209,19 @@ family, its denominator, and which comparisons are controlled vs. historical.
    every model in this report uses the proxy. It is NOT an accuracy score;
    do not cite it as such.
 
-4. **Efficiency** — cost/latency fields are `null`, never `0`, when the
-   runner never observed them. `inference_time_seconds` and
-   `retry_wait_time_seconds` are `null` for every model because
-   `run_model_eval.py`'s per-job latency includes any internal retry
-   backoff sleep and the two cannot be separated after the fact.
-   `observed_cost_usd` comes directly from OpenRouter's reported
-   `usage.cost`; no independent price-table estimator is implemented, so
-   `estimated_cost_usd` stays `null` (`cost_source` records which was used).
+4. **Efficiency** — cost/latency fields are `null`, never `0`, when neither
+   measured nor a defensible estimate exists. Each has an explicit basis:
+   measured API runs report `observed_cost_usd` (from OpenRouter `usage.cost`)
+   and measured per-job latency (`timing_basis=measured`). Subscription/manual
+   and recovered-historical runs report `observed_cost_usd=null` plus an
+   `estimated_cost_usd` at OpenRouter list price
+   (`cost_basis=openrouter_list_price_estimate`) and an
+   `estimated_inference_time_seconds` reconstructed from OpenRouter
+   latency/throughput with a conservative 1.20 (+20%) time overhead
+   (`timing_basis=openrouter_equivalent_estimate`). The 1.20 factor is applied
+   to time only, never to cost. Estimates never populate
+   `provider_measured_latency_seconds`. See `model_efficiency_comparison.md`
+   and `historical_model_efficiency.md`.
 
 ## Cohorts
 
@@ -215,12 +301,17 @@ def main() -> None:
     write_reliability_table(rows, REPORTS_DIR / "reliability_table.csv")
     print(f"Wrote {REPORTS_DIR / 'reliability_table.csv'}")
 
+    write_efficiency_reports(rows)
+
     common_semantic = build_common_semantic_cohort(rows)
 
     frozen_job_ids = loaders.load_frozen_job_ids()
     baseline = historical_baselines.build_baseline_report(frozen_job_ids)
     write_csv([baseline], REPORTS_DIR / "historical_baseline_comparison.csv")
     print(f"Wrote {REPORTS_DIR / 'historical_baseline_comparison.csv'}")
+
+    historical_efficiency = historical_baselines.historical_efficiency_report(frozen_job_ids)
+    write_historical_efficiency_report(historical_efficiency)
 
     methodology_path = REPORTS_DIR / "benchmark_methodology.md"
     methodology_path.write_text(build_methodology(rows, baseline, common_semantic), encoding="utf-8")

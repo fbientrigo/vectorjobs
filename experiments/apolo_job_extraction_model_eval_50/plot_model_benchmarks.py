@@ -39,6 +39,11 @@ def main() -> None:
     written.extend(paths)
     all_notes.extend(notes)
 
+    historical_efficiency = historical_baselines.historical_efficiency_report(frozen_job_ids)
+    paths, notes = plots.plot_historical_efficiency(historical_efficiency, FIGURES_DIR)
+    written.extend(paths)
+    all_notes.extend(notes)
+
     for path in written:
         print(f"Wrote {path}")
 

@@ -132,54 +132,81 @@ def plot_model_retry_burden(rows, out_dir):
     return _save(fig, out_dir, "model_retry_burden"), []
 
 
+def _is_estimate(row, basis_key):
+    return "estimate" in str(row.get(basis_key) or "").lower()
+
+
+def _basis_legend(ax):
+    """Measured (solid) vs OpenRouter-equivalent estimate (hatched)."""
+    handles = [
+        Line2D([0], [0], marker="s", linestyle="", color="#888888", markersize=9, label="Measured"),
+        Line2D([0], [0], marker="s", linestyle="", markerfacecolor="#888888",
+               markeredgecolor="black", markersize=9, label="OpenRouter-equivalent estimate (+20%)"),
+    ]
+    ax.legend(handles=handles, fontsize=7, loc="upper right")
+
+
+def _hatches(rows, basis_key):
+    return ["///" if _is_estimate(r, basis_key) else "" for r in rows]
+
+
 def plot_model_cost_50_requested_jobs(rows, out_dir):
-    priced = [r for r in rows if r.get("efficiency_observed_cost_usd") is not None]
+    priced = [r for r in rows if r.get("efficiency_cost_for_reporting_usd") is not None]
     skip_notes = []
     unpriced = [r["model"] for r in rows if r not in priced]
     if unpriced:
-        skip_notes.append(f"models excluded (no observed cost, not shown as 0): {unpriced}")
+        skip_notes.append(f"models excluded (no observed or estimated cost, not shown as 0): {unpriced}")
     if not priced:
-        return [], skip_notes + ["model_cost_50_requested_jobs skipped: no model has observed cost."]
+        return [], skip_notes + ["model_cost_50_requested_jobs skipped: no model has observed or estimated cost."]
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(max(8, len(priced) * 2), 4.5))
     labels = _labels(priced)
-    total_cost = [r["efficiency_observed_cost_usd"] for r in priced]
-    ax1.bar(labels, total_cost, color="#55A868")
-    ax1.set_title("Total observed cost (full attempted run)")
+    hatch = _hatches(priced, "efficiency_cost_basis")
+    total_cost = [r["efficiency_cost_for_reporting_usd"] for r in priced]
+    ax1.bar(labels, total_cost, color="#55A868", hatch=hatch, edgecolor="black")
+    ax1.set_title("Total cost (observed or OpenRouter list-price estimate)")
     ax1.set_ylabel("USD")
+    _basis_legend(ax1)
     plt.setp(ax1.get_xticklabels(), rotation=30, ha="right")
 
     cost_per_attempted = [r["efficiency_cost_per_attempted_job"] for r in priced]
     cost_per_valid = [r["efficiency_cost_per_eventually_valid_job"] for r in priced]
     x = range(len(labels))
     width = 0.35
-    ax2.bar([i - width / 2 for i in x], cost_per_attempted, width, label="cost / attempted job")
-    ax2.bar([i + width / 2 for i in x], cost_per_valid, width, label="cost / valid job")
+    ax2.bar([i - width / 2 for i in x], cost_per_attempted, width, label="cost / attempted job", hatch=hatch, edgecolor="black")
+    ax2.bar([i + width / 2 for i in x], cost_per_valid, width, label="cost / valid job", hatch=hatch, edgecolor="black")
     ax2.set_xticks(list(x))
     ax2.set_xticklabels(labels, rotation=30, ha="right")
     ax2.set_ylabel("USD")
-    ax2.set_title("Cost normalized two ways")
-    ax2.legend()
+    ax2.set_title("Cost normalized two ways (hatched = estimate)")
+    ax2.legend(fontsize=7)
     return _save(fig, out_dir, "model_cost_50_requested_jobs"), skip_notes
 
 
 def plot_model_speed_comparison(rows, out_dir):
-    timed = [r for r in rows if r.get("efficiency_wall_time_seconds") is not None]
+    timed = [r for r in rows if r.get("efficiency_seconds_per_valid_job") is not None]
     if not timed:
-        return [], ["model_speed_comparison skipped: no model has wall_time_seconds."]
+        return [], ["model_speed_comparison skipped: no model has measured or estimated speed."]
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(max(8, len(timed) * 2), 4.5))
     labels = _labels(timed)
-    ax1.bar(labels, [r["efficiency_completed_jobs_per_minute"] for r in timed], color="#C44E52")
-    ax1.set_title("Valid jobs per minute")
+    hatch = _hatches(timed, "efficiency_timing_basis")
+    ax1.bar(labels, [r["efficiency_completed_jobs_per_minute"] for r in timed],
+            color="#C44E52", hatch=hatch, edgecolor="black")
+    ax1.set_title("Estimated or measured completed jobs per minute")
+    _basis_legend(ax1)
     plt.setp(ax1.get_xticklabels(), rotation=30, ha="right")
 
-    ax2.bar(labels, [r["efficiency_seconds_per_valid_job"] for r in timed], color="#8172B2")
-    ax2.set_title("Seconds per valid job")
+    ax2.bar(labels, [r["efficiency_seconds_per_valid_job"] for r in timed],
+            color="#8172B2", hatch=hatch, edgecolor="black")
+    ax2.set_title("Estimated or measured seconds per completed job")
+    ax2.set_ylabel("seconds/job — inference timing basis: hatched = estimate")
+    _basis_legend(ax2)
     plt.setp(ax2.get_xticklabels(), rotation=30, ha="right")
     for r in timed:
-        wt = r["efficiency_wall_time_seconds"]
-        ax2.annotate(f"wall={wt:.0f}s", (r["model"], r["efficiency_seconds_per_valid_job"]),
+        seconds = r["efficiency_seconds_per_valid_job"]
+        tag = "est" if _is_estimate(r, "efficiency_timing_basis") else "meas"
+        ax2.annotate(f"{seconds:.1f}s ({tag})", (r["model"], seconds),
                      textcoords="offset points", xytext=(0, 5), fontsize=7, ha="center")
     return _save(fig, out_dir, "model_speed_comparison"), []
 
@@ -356,6 +383,30 @@ def plot_pareto_reliability_cost(rows, out_dir):
         x_label="total observed cost (USD)", y_label="valid completion rate",
         title="Pareto: reliability vs. cost", name="pareto_reliability_cost", out_dir=out_dir,
     )
+
+
+def plot_historical_efficiency(record, out_dir):
+    """Single-panel efficiency figure for the recovered historical Gemini
+    dataset (not quality-comparable to the frozen 50). Hatched = estimate."""
+    if not record or not record.get("n_rows"):
+        return [], ["historical_model_efficiency skipped: no recovered rows."]
+    name = record["display_name"]
+    sec = record.get("estimated_seconds_per_completed_job")
+    cost_1k = record.get("estimated_cost_per_1000_jobs_usd")
+    if sec is None and cost_1k is None:
+        return [], ["historical_model_efficiency skipped: no estimated cost or timing."]
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 4.5))
+    ax1.bar([name], [sec or 0], color="#8172B2", hatch="///", edgecolor="black")
+    ax1.set_title("Est. seconds per completed job")
+    ax1.set_ylabel(f"OpenRouter-equivalent estimate (+20%), n={record['n_rows']} rows")
+    ax2.bar([name], [cost_1k or 0], color="#55A868", hatch="///", edgecolor="black")
+    ax2.set_title("Est. cost per 1000 completed jobs (USD)")
+    for ax in (ax1, ax2):
+        _basis_legend(ax)
+        plt.setp(ax.get_xticklabels(), rotation=15, ha="right")
+    fig.suptitle(f"{name} — historical efficiency (quality NOT frozen-50 comparable)", fontsize=10)
+    return _save(fig, out_dir, "historical_model_efficiency"), []
 
 
 ALL_PLOTS = [

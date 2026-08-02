@@ -27,17 +27,21 @@ Gemini-family baseline; it is NOT evidence of model identity.
 """
 
 import json
+import math
 from pathlib import Path
 
-from . import loaders
+from . import api_equivalent, loaders
 
 DATA_DIR = Path(loaders.EXPERIMENT_DIR).parent.parent / "data" / "silver" / "agent_labeling"
 HISTORICAL_JSONL = DATA_DIR / "job_level_apolo_extractions_all.jsonl"
 HISTORICAL_MANIFEST = DATA_DIR / "job_level_apolo_extractions_all_manifest.json"
 AGENT_LABELING_PROMPT = DATA_DIR / "agent_labeling_prompt.md"
+EXTRACTION_PROMPT = loaders.EXPERIMENT_DIR / "prompts" / "apolo_extraction_base_prompt.md"
 
 BASELINE_ID = "gemini_historical_all"
 DISPLAY_NAME = "Gemini 3.5 Flash historical baseline"
+# Task-facing target name for the efficiency (not quality) report.
+EFFICIENCY_DISPLAY_NAME = "Gemini 3.5 Flash High"
 
 
 def load_historical_manifest() -> dict | None:
@@ -107,6 +111,112 @@ def structural_diagnostics(overlap_rows: dict[str, dict], frozen_sample: dict[st
         "confidence_mean": (sum(confidences) / len(confidences)) if confidences else None,
         "evidence_grounded_rate": evidence_grounded / n_overlap,
     }
+
+
+def _user_payload(job: dict) -> str:
+    """Same request shape run_model_eval.build_user_prompt uses, for
+    deterministic input-token reconstruction (never sent anywhere)."""
+    return (
+        f"job_id: {job.get('job_id')}\n"
+        f"title: {job.get('title')}\n\n"
+        f"job_card_text:\n{job.get('job_card_text', '')}\n\n"
+        f"description_text (supplementary context only, not an evidence source):\n"
+        f"{job.get('description_text', '')}\n"
+    )
+
+
+def _mean_overlap_input_tokens(frozen_job_ids, frozen_sample) -> float | None:
+    """Mean per-row input tokens (extraction prompt + exact job payload) over
+    the frozen-50 overlap. The full historical set shares the frozen sample's
+    exact selection filter, so this mean extrapolates honestly to every row.
+    """
+    if not EXTRACTION_PROMPT.exists():
+        return None
+    prompt = EXTRACTION_PROMPT.read_text(encoding="utf-8")
+    overlap = load_overlap_rows(frozen_job_ids)
+    per_row = []
+    for job_id in overlap:
+        job = frozen_sample.get(job_id)
+        if not job:
+            continue
+        per_row.append(api_equivalent.utf8_bytes_div4(prompt + _user_payload(job)))
+    return (sum(per_row) / len(per_row)) if per_row else None
+
+
+def historical_efficiency_report(frozen_job_ids=None, frozen_sample=None) -> dict:
+    """Deterministic, network-free efficiency estimate for the recovered
+    historical Gemini dataset, aggregated over its ACTUAL recovered row count.
+
+    Output tokens: exact stored visible JSON responses (utf8_bytes/4).
+    Input tokens: extraction prompt + exact job payload, measured on the
+    frozen-50 overlap and extrapolated to the full row count (same selection
+    filter). Cost/timing: OpenRouter list-price + equivalent-timing estimate.
+    Quality is NOT reported here: this dataset is not directly comparable to
+    the frozen-50 quality benchmark (see build_baseline_report).
+    """
+    frozen_job_ids = frozen_job_ids if frozen_job_ids is not None else loaders.load_frozen_job_ids()
+    frozen_sample = frozen_sample if frozen_sample is not None else loaders.load_frozen_sample()
+    manifest = load_historical_manifest() or {}
+
+    n_rows = 0
+    out_bytes = 0
+    if HISTORICAL_JSONL.exists():
+        with HISTORICAL_JSONL.open("r", encoding="utf-8") as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                row = json.loads(line)
+                n_rows += 1
+                out_bytes += len(
+                    json.dumps(row.get("apolo_extraction", {}), ensure_ascii=False).encode("utf-8")
+                )
+    if n_rows == 0:
+        return {"baseline_id": BASELINE_ID, "display_name": EFFICIENCY_DISPLAY_NAME,
+                "n_rows": 0, "directly_comparable": False}
+
+    total_output_tokens = math.ceil(out_bytes / 4)
+    mean_in = _mean_overlap_input_tokens(frozen_job_ids, frozen_sample)
+    total_input_tokens = round(mean_in * n_rows) if mean_in is not None else None
+
+    record = {
+        "baseline_id": BASELINE_ID,
+        "display_name": EFFICIENCY_DISPLAY_NAME,
+        "source_path": str(HISTORICAL_JSONL),
+        "reasoning_mode": "high",
+        "generation_method": "mixed",
+        "provenance_status": "unknown",
+        "directly_comparable": False,
+        "quality_comparable_to_frozen_50": False,
+        "n_rows": n_rows,
+        "n_rows_attempted": n_rows,
+        "n_rows_completed": n_rows,
+        "frozen_50_overlap": len(load_overlap_rows(frozen_job_ids)),
+        "total_input_tokens": total_input_tokens,
+        "total_output_tokens": total_output_tokens,
+        "total_tokens": (total_input_tokens + total_output_tokens) if total_input_tokens is not None else None,
+        "token_count_method": (
+            "output: exact stored visible JSON responses, utf8_bytes/4 over all "
+            f"{n_rows} recovered rows; input: extraction prompt + exact job payload "
+            "measured on the frozen-50 overlap, extrapolated to all rows (shared selection filter)"
+        ),
+        "token_count_is_measured": False,
+        "token_count_limitations": (
+            "No provider usage was preserved for the historical dataset. Output "
+            "tokens are exact-response utf8_bytes/4; input tokens are an "
+            "extrapolation from the frozen-50 overlap, not per-row measured."
+        ),
+        "comparability_notes": (
+            "Efficiency/cost only. Provenance is unverified and generation was "
+            "mixed (model-assisted + rule-based); quality is NOT directly "
+            "comparable to the frozen-50 quality benchmark. Included here for "
+            "efficiency/cost reporting per the recovery of thousands of jobs."
+        ),
+    }
+    if total_input_tokens is not None:
+        record.update(api_equivalent.cost_block(
+            total_input_tokens, total_output_tokens, "gemini-3.5-flash", n_rows, n_rows))
+    record.update(api_equivalent.timing_block(total_output_tokens, "gemini-3.5-flash", n_rows, n_rows))
+    return record
 
 
 def build_baseline_report(frozen_job_ids: list[str], frozen_sample: dict[str, dict] | None = None) -> dict:

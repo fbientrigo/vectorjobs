@@ -17,6 +17,37 @@ def _safe_div(numerator, denominator):
     return numerator / denominator
 
 
+def _speed_seconds(manifest: dict):
+    """Seconds per completed job with an explicit basis, never local wall time.
+
+    Priority: measured provider latency > OpenRouter-equivalent estimate >
+    measured per-job API latency (real OpenRouter runs). Manual/subscription
+    runs without a defensible estimate stay None. Returns (seconds, basis).
+    """
+    if manifest.get("provider_measured_latency_seconds") is not None:
+        return manifest.get("provider_measured_latency_seconds"), "measured"
+    if manifest.get("estimated_seconds_per_completed_job") is not None:
+        return manifest.get("estimated_seconds_per_completed_job"), "openrouter_equivalent_estimate"
+    generation_method = str(manifest.get("generation_method") or "").lower()
+    limitations = " ".join(str(v).lower() for v in manifest.get("limitations", []))
+    if "manual" in generation_method or "no external api" in limitations or "no per-job api call" in limitations:
+        return None, None
+    latency = manifest.get("latency_seconds")
+    return latency, ("measured" if latency is not None else None)
+
+
+def _cost_reporting(manifest: dict):
+    """(observed, estimated, effective, basis, source). Subscription runs keep
+    observed=None and carry the OpenRouter list-price estimate."""
+    value = manifest.get("estimated_cost_usd")
+    if manifest.get("cost_basis") == "openrouter_list_price_estimate" or manifest.get("cost_is_measured") is False:
+        estimated = manifest.get("estimated_cost_usd")
+        return None, estimated, estimated, "openrouter_list_price_estimate", "openrouter_list_price_estimate"
+    if value is None:
+        return None, None, None, None, None
+    return value, None, value, "measured", "openrouter_usage_field"
+
+
 def structural_correctness(manifest: dict) -> dict:
     """Separates transport/JSON/schema/validation/evidence failures.
 
@@ -124,23 +155,30 @@ def efficiency_metrics(manifest: dict) -> dict:
     manifest = manifest or {}
     n_attempted = manifest.get("n_rows_requested") or 0
     n_completed = manifest.get("n_rows_completed") or 0
-    cost = manifest.get("estimated_cost_usd")
+    observed_cost, estimated_cost, cost, cost_basis, cost_source = _cost_reporting(manifest)
     wall_time = manifest.get("wall_time_seconds")
+    speed_seconds, timing_basis = _speed_seconds(manifest)
 
     return {
-        "observed_cost_usd": cost,
-        "estimated_cost_usd": None,
-        "cost_source": "openrouter_usage_field" if cost is not None else None,
-        "total_input_tokens": manifest.get("prompt_tokens"),
-        "total_output_tokens": manifest.get("completion_tokens"),
+        "observed_cost_usd": observed_cost,
+        "estimated_cost_usd": estimated_cost,
+        "cost_for_reporting_usd": cost,
+        "cost_basis": cost_basis,
+        "cost_source": cost_source,
+        "total_input_tokens": manifest.get("total_input_tokens", manifest.get("prompt_tokens")),
+        "total_output_tokens": manifest.get("total_output_tokens", manifest.get("completion_tokens")),
         "total_reasoning_tokens": None,
         "total_tokens": manifest.get("total_tokens"),
         "wall_time_seconds": wall_time,
-        "inference_time_seconds": None,
+        "inference_time_seconds": manifest.get("estimated_inference_time_seconds"),
+        "estimated_inference_time_seconds": manifest.get("estimated_inference_time_seconds"),
         "retry_wait_time_seconds": None,
-        "completed_jobs_per_minute": _safe_div(n_completed, wall_time / 60) if wall_time else None,
-        "seconds_per_attempted_job": _safe_div(wall_time, n_attempted),
-        "seconds_per_valid_job": _safe_div(wall_time, n_completed),
+        "timing_basis": timing_basis,
+        "latency_safety_factor": manifest.get("latency_safety_factor"),
+        "completed_jobs_per_minute": _safe_div(60, speed_seconds),
+        "seconds_per_attempted_job": manifest.get("estimated_seconds_per_attempted_job")
+            if timing_basis == "openrouter_equivalent_estimate" else _safe_div(wall_time, n_attempted),
+        "seconds_per_valid_job": speed_seconds,
         "cost_per_attempted_job": _safe_div(cost, n_attempted),
         "cost_per_first_pass_valid_job": _safe_div(cost, n_completed),
         "cost_per_eventually_valid_job": _safe_div(cost, n_completed),

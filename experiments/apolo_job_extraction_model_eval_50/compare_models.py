@@ -41,9 +41,9 @@ DIAGNOSTIC_COLUMNS = [
     "confidence_mean", "confidence_1_rate",
 ]
 EFFICIENCY_COLUMNS = [
-    "total_tokens", "estimated_cost_usd", "wall_time_seconds", "latency_seconds",
+    "total_tokens", "estimated_cost_usd", "cost_basis", "wall_time_seconds",
     "cost_per_completed_row", "tokens_per_completed_row",
-    "seconds_per_completed_row", "valid_rows_per_usd",
+    "seconds_per_completed_row", "timing_basis", "valid_rows_per_usd",
 ]
 SCORE_COLUMNS = ["hard_gate_pass", "operational_candidate_score"]
 ALL_COLUMNS = ["model"] + GATE_COLUMNS + DIAGNOSTIC_COLUMNS + EFFICIENCY_COLUMNS + SCORE_COLUMNS
@@ -88,6 +88,28 @@ def hard_gate_pass(manifest: dict) -> bool:
     )
 
 
+def speed_seconds(manifest: dict):
+    """Seconds per completed job: measured > OpenRouter-equivalent estimate >
+    measured per-job API latency. Never local wall time."""
+    if manifest.get("provider_measured_latency_seconds") is not None:
+        return manifest.get("provider_measured_latency_seconds")
+    if manifest.get("estimated_seconds_per_completed_job") is not None:
+        return manifest.get("estimated_seconds_per_completed_job")
+    generation_method = str(manifest.get("generation_method") or "").lower()
+    limitations = " ".join(str(v).lower() for v in manifest.get("limitations", []))
+    if "manual" in generation_method or "no external api" in limitations or "no per-job api call" in limitations:
+        return None
+    return manifest.get("latency_seconds")
+
+
+def timing_basis(manifest: dict) -> str:
+    if manifest.get("provider_measured_latency_seconds") is not None:
+        return "measured"
+    if manifest.get("estimated_seconds_per_completed_job") is not None:
+        return "openrouter_equivalent_estimate"
+    return "measured" if speed_seconds(manifest) is not None else "unavailable"
+
+
 def operational_candidate_score(row: dict) -> float:
     if not row["hard_gate_pass"]:
         return 0.0
@@ -127,6 +149,8 @@ def load_row(manifest_path: Path) -> dict:
     total_tokens = manifest.get("total_tokens")
     cost = manifest.get("estimated_cost_usd")
     wall_time = manifest.get("wall_time_seconds")
+    speed_time = speed_seconds(manifest)
+    cost_basis = manifest.get("cost_basis") or ("measured" if cost is not None else None)
 
     row = {
         "model": manifest.get("display_name") or manifest.get("model"),
@@ -155,11 +179,12 @@ def load_row(manifest_path: Path) -> dict:
         "confidence_1_rate": manifest.get("confidence_1_rate"),
         "total_tokens": total_tokens,
         "estimated_cost_usd": cost,
+        "cost_basis": cost_basis,
         "wall_time_seconds": wall_time,
-        "latency_seconds": manifest.get("latency_seconds"),
         "cost_per_completed_row": (cost / n_completed) if (cost is not None and n_completed) else None,
         "tokens_per_completed_row": (total_tokens / n_completed) if (total_tokens is not None and n_completed) else None,
-        "seconds_per_completed_row": (wall_time / n_completed) if (wall_time is not None and n_completed) else None,
+        "seconds_per_completed_row": speed_time,
+        "timing_basis": timing_basis(manifest),
         "valid_rows_per_usd": (n_completed / cost) if cost else None,
     }
     row["hard_gate_pass"] = hard_gate_pass(manifest)
