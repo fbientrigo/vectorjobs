@@ -1,0 +1,16 @@
+{
+  "snapshot_id": "apolo-mvp-real-demo-20260913T214800Z",
+  "built_at": "2026-09-13T21:48:00.105037+00:00",
+  "built_by": "build_golden_snapshot.py",
+  "programs": [
+    "uchile-ingcivil",
+    "uls-civcomp",
+    "uchile-civind"
+  ],
+  "role_families_source": "C:\\Users\\Asus\\Documents\\code\\apolo\\vectorjobs\\data\\gold_contract\\job_market_gold_v0\\role_families.json",
+  "notes": [
+    "careers/university profiles: real official program pages via apolo_scraper.",
+    "labor evidence: real Chilean job postings (vectorjobs JobMarketGold v0), keyword-substring grouping, confidence=low.",
+    "matching: deterministic lexical+axis-overlap baseline (career_compatibility_v2); no embeddings, no LLM, no fine-tuning."
+  ]
+}
