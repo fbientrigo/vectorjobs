@@ -1,0 +1,17 @@
+[
+  {
+    "id": "uchile-ingcivil",
+    "institution": "Universidad de Chile",
+    "career": "Ingenieria Civil"
+  },
+  {
+    "id": "uls-civcomp",
+    "institution": "Universidad de La Serena",
+    "career": "Ingenieria Civil en Computacion e Informatica"
+  },
+  {
+    "id": "uchile-civind",
+    "institution": "Universidad de Chile",
+    "career": "Ingenieria Civil Industrial"
+  }
+]

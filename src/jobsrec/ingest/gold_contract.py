@@ -24,8 +24,10 @@ from typing import Any
 
 import pandas as pd
 
+from jobsrec.extract.skills import match_skills
+
 SCHEMA_VERSION = "0.0.1"
-SOURCE_NAME = "linkedin_jobs_2024"  # ponytail: best-guess label, trivially editable
+SOURCE_NAME = "apolo_scraper_cl_job_postings"  # real Chilean postings; see docs/specs/01_data_contract.md
 
 RETRIEVAL_CORPUS_COLUMNS = [
     "chunk_id",
@@ -49,26 +51,48 @@ SKILL_SHARE_COLUMNS = [
 
 # ponytail: naive substring rules over titles; upgrade to embeddings/clustering
 # if recall matters. First match wins; postings matching none are unassigned.
+# Keywords are Spanish-first: the underlying postings (data/silver/jobs.parquet)
+# are real Chilean job-board listings with Spanish titles, not English ones.
 ROLE_FAMILY_RULES: dict[str, dict[str, Any]] = {
-    "civil_engineering": {
-        "label": "Civil Engineering",
-        "keywords": ["civil", "structural", "geotechnical"],
+    "civil_infrastructure": {
+        "label": "Ingenieria Civil e Infraestructura",
+        "keywords": [
+            "ingeniero civil",
+            "ingeniera civil",
+            "obra civil",
+            "obras civiles",
+            "construccion",
+            "geotecni",
+            "estructural",
+        ],
     },
-    "construction_project_management": {
-        "label": "Construction & Project Management",
-        "keywords": ["construction", "project manager", "site", "foreman"],
+    "computing_software": {
+        "label": "Computacion, Software y Datos",
+        "keywords": [
+            "informat",
+            "software",
+            "programador",
+            "desarrollador",
+            "desarrolladora",
+            "sistemas",
+            "full stack",
+            "backend",
+            "frontend",
+            "analista de datos",
+        ],
     },
-    "transportation_planning": {
-        "label": "Transportation Planning",
-        "keywords": ["transportation", "transit", "traffic", "highway"],
-    },
-    "water_environmental_engineering": {
-        "label": "Water & Environmental Engineering",
-        "keywords": ["water", "environmental", "wastewater", "hydrology"],
-    },
-    "data_analytics_engineering": {
-        "label": "Data & Analytics Engineering",
-        "keywords": ["data", "analytics", "analyst", "machine learning", "etl"],
+    "industrial_management": {
+        "label": "Ingenieria Industrial y Gestion",
+        "keywords": [
+            "ingeniero industrial",
+            "ingeniera industrial",
+            "gestion de proyectos",
+            "gestion de operaciones",
+            "operaciones",
+            "logistic",
+            "supply chain",
+            "procesos",
+        ],
     },
 }
 
@@ -88,6 +112,24 @@ def _split_skills(skills_text: Any) -> list[str]:
     if not raw:
         return []
     return [s.strip() for s in raw.split(",") if s.strip()]
+
+
+def _row_skills(row: pd.Series) -> list[str]:
+    """Real skills for one posting. ``skills_text`` is always empty in this
+    dataset (bronze has no skills table yet — see docs/specs/01_data_contract.md),
+    so fall back to a small deterministic regex detector over the real posting
+    description (jobsrec.extract.skills) rather than leaving skills empty.
+    """
+    explicit = _split_skills(row.get("skills_text"))
+    if explicit:
+        return explicit
+    description = _clean_str(row.get("description_text")) or _clean_str(row.get("description"))
+    _, detected = match_skills(description)
+    return detected
+
+
+def _row_location(row: pd.Series) -> str:
+    return _clean_str(row.get("location")) or _clean_str(row.get("company_region"))
 
 
 def _period_for(listed_time: Any) -> str:
@@ -126,10 +168,10 @@ def _build_retrieval_corpus(df: pd.DataFrame) -> pd.DataFrame:
         doc_id = _clean_str(row.get("job_id")) or str(row.name)
         url = _clean_str(row.get("application_url"))
         metadata = {
-            "location": _clean_str(row.get("location")),
+            "location": _row_location(row),
             "work_type": _clean_str(row.get("formatted_work_type")),
             "experience": _clean_str(row.get("formatted_experience_level")),
-            "skills_text": _clean_str(row.get("skills_text")),
+            "skills": _row_skills(row),
             "period": _period_for(row.get("listed_time")),
         }
         rows.append(
@@ -154,7 +196,7 @@ def _build_skill_share(df: pd.DataFrame) -> pd.DataFrame:
     for _, row in df.iterrows():
         period = _period_for(row.get("listed_time"))
         postings_per_period[period] += 1
-        for skill in set(_split_skills(row.get("skills_text"))):
+        for skill in set(_row_skills(row)):
             evidence[(period, skill)] += 1
 
     rows: list[dict[str, Any]] = []
@@ -194,25 +236,35 @@ def _build_role_families(df: pd.DataFrame) -> dict[str, Any]:
                 bucket["count"] += 1
                 if title and title not in bucket["titles"]:
                     bucket["titles"].append(title)
-                for skill in _split_skills(row.get("skills_text")):
+                for skill in _row_skills(row):
                     bucket["skills"][skill] += 1
-                loc = _clean_str(row.get("location"))
+                loc = _row_location(row)
                 if loc and loc not in bucket["locations"]:
                     bucket["locations"].append(loc)
                 break  # first match wins
 
+    total_postings = len(df)
     families = []
     for fam_id, rule in ROLE_FAMILY_RULES.items():
         bucket = acc[fam_id]
+        skill_hits = bucket["skills"].most_common(10)
         families.append(
             {
                 "role_family_id": fam_id,
                 "label": rule["label"],
                 "representative_titles": bucket["titles"][:5],
-                "skills": [s for s, _ in bucket["skills"].most_common(10)],
+                "skills": [s for s, _ in skill_hits],
                 "locations": bucket["locations"][:10],
                 "posting_count": bucket["count"],
+                # keyword-substring grouping over real postings, not a verified
+                # occupation taxonomy or an employability signal.
                 "confidence": "low",
+                "sample_of_total_postings": total_postings,
+                "skills_evidence_basis": (
+                    "regex-detected hard skills from posting text"
+                    if skill_hits
+                    else "insufficient evidence"
+                ),
             }
         )
     return {"schema_version": SCHEMA_VERSION, "role_families": families}
